@@ -51,7 +51,7 @@ Candidate `f4fbd4c36ee5946a8d9ef417d2e2c0606a9124a5` passed all three workflows:
 
 The real synthetic MySQL backup→fresh-volume restore, exact full-dump comparison, restored application readiness and MySQL/Redis outage recovery all passed. No real analytical service was involved. Subsequent review strengthens the lease-only HTTP assertion, historical migration-byte check, and comparator precision/question uniqueness tests. Those follow-up changes require their own exact-head CI; the links above do not falsely certify later commits. Current workflow history is the authoritative final status.
 
-## Final strengthened-head evidence (local report)
+## Earlier strengthened-head evidence
 
 Head `3dea22a6a52e598b0a11e7c29f6e924e0d9161fe`:
 - Frontend https://github.com/NJgaoyang/datalens/actions/runs/41662695743: 69 unit + 83 Chromium cases passed, typecheck/build passed.
@@ -60,11 +60,31 @@ Head `3dea22a6a52e598b0a11e7c29f6e924e0d9161fe`:
 
 Independent final static review found no remaining material concerns in the M10 fixes. All production blockers in the matrix remain.
 
-Final acceptance evidence above is maintained locally for handoff; committed report contains initial successful candidate evidence and requires exact-head workflow verification. All three final-head workflows were verified successful on 2026-11-03. No merge or deployment occurred.
+The earlier strengthened code head passed all three workflows on 2026-11-03. It is superseded by the accepted hardening code head below. No merge or deployment occurred.
 
-## Further M10 code-solvable hardening (local checks passed, CI pending)
-Non-destructive admission quotas, chart-list concurrency admission, and application-side bounded JDBC cell reading have passed local checks and await exact-head CI. See `M10-capacity-hardening.md`; quota defaults are not production sizing. No retention deletion, real service contact, merge or deployment is introduced. Earlier final-head evidence does not certify this follow-up until its own exact-head CI completes.
+## Further M10 code-solvable hardening
+Non-destructive admission quotas, chart-list concurrency admission, and application-side bounded JDBC cell reading passed the final exact-head CI recorded below. See `M10-capacity-hardening.md`; quota defaults are not production sizing. No retention deletion, real service contact, merge or deployment is introduced. Earlier candidate evidence is kept for traceability; only the final accepted head below certifies the follow-up.
 
 Final local hardening check: Java21 compilation of all main/test sources; 404 unit tests passed, zero skips; frontend69 unit tests, typecheck/build; 12 offline validator tests; shell/YAML validation. Independent static review cleared quota transactions/replay, preserved revoke/recovery and fixed-scalar/bounded-stream paths. No local MySQL/Docker or live services were used.
 
-Hardening candidate `b5eee4af099a35f4cbe5d7f0b62985583748b7d0`: frontend69+83 and full Docker restore passed, backend404 unit passed but4 new ChartCapacityIT assertions failed. The tests mutated a field on the Spring proxy instead of configuring its target, so their lowered limits were not active. Corrective change makes ChartCapacity immutable constructor injection, constructs explicit low-limit transactional stores for boundary tests, adds a real Spring-configured proxy regression, and cleans fixture-owned rows even if an assertion fails. This failed candidate is NOT accepted; the corrective head must pass all workflows.
+Hardening candidate `b5eee4af099a35f4cbe5d7f0b62985583748b7d0`: frontend69+83 and full Docker restore passed, backend404 unit passed but4 new ChartCapacityIT assertions failed. The tests mutated a field on the Spring proxy instead of configuring its target, so their lowered limits were not active. Corrective change makes ChartCapacity immutable constructor injection, constructs explicit low-limit transactional stores for boundary tests, adds a real Spring-configured proxy regression, and cleans fixture-owned rows even if an assertion fails. This failed candidate is NOT accepted; the corrective head below passed every workflow.
+
+## Accepted hardening code head (2026-11-03)
+
+`61fedfbab3e2a46a7a4e1c863e16be75e8451a8e`, branch `fix/m00-frontend-lock`:
+
+- Backend https://github.com/NJgaoyang/datalens/actions/runs/41666746988: full Maven verify/package, **404 unit + 106 real MySQL/Redis integration tests**, zero failures/errors/skips. All five ChartCapacityIT and seven HistoryCapacityIT cases passed, including real Spring-configured quotas, race boundaries, preservation and model-budget rollback. Twelve offline evidence-validator tests and historical migration-byte checks passed.
+- Frontend https://github.com/NJgaoyang/datalens/actions/runs/41666746909: **69 unit + 83 Chromium browser tests**, clean install/typecheck/build passed.
+- Docker https://github.com/NJgaoyang/datalens/actions/runs/41666747067: cold start, same-volume restart, Redis recovery, lost-query-lease readiness and controlled process restart, full logical backup equality and fresh-volume restore/readiness passed.
+
+This documentation update changes no runtime source, test, configuration or workflow. Subsequent branch-head workflow results remain independently visible in GitHub Actions.
+
+### What remains blocked, precisely
+
+1. User-deferred live StarRocks version/TLS/metadata/read-only access, cancellation/timeout and database-side orphan checks; real-driver buffering and loaded recovery.
+2. Authorized provider/account/payload/budget and a real human-reviewed business subject. At least100 independently reviewed business cases on a frozen dataset; agree correctness target after freezing, then execute and verify. No synthetic fixture is counted as business acceptance.
+3. Representative scale inputs and measured latency/error targets, including full authorization-filtered chart scans. Two concurrent scans and admission quotas reduce risk, but do not prove a production SLA or bounded per-request work.
+4. Product-approved archival/retention and recovery policy. No new automatic deletion exists; audit/admin recovery history intentionally remains writable. Do not invent a purge duration or delete idempotency, grants, budget or quarantine evidence.
+5. Production TLS/network/secrets and supply-chain review, immutable release image/action provenance, encrypted backup/key escrow/PITR and measured RPO/RTO, plus old-application rollback rehearsal and actual deployment authorization.
+
+Therefore development hardening is accepted, but **production acceptance and deployment remain blocked**. No merge, deployment, real provider contact or StarRocks connection occurred.

@@ -42,3 +42,6 @@ Before production, decide which record classes can be archived, the required ret
 ## Verification required
 
 Unit tests cover invalid configuration and exact count/replay ordering. Disposable MySQL tests exercise limit boundaries, concurrent last-slot admission, refusal without partial insert/budget consumption, and continued completion/revocation/recovery with unchanged stored data. Run the entire backend/frontend/Compose acceptance on the final pushed commit. Mock checks do not establish real StarRocks behavior or representative load.
+
+## Executed acceptance
+Accepted code head `61fedfbab3e2a46a7a4e1c863e16be75e8451a8e`:404 unit +106 real MySQL/Redis integration tests passed, including five chart quota and seven query/conversation/model quota integration cases. The actual Spring-configured chart proxy is tested separately from explicit low-limit transactional stores. Frontend69+83 and the full disposable Docker backup/restore drill also passed. Exact workflow links and remaining production gates are recorded in `M10-acceptance.md`.

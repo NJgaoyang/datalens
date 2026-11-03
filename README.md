@@ -18,3 +18,5 @@ M08 本地范围和验证边界见 [docs/M08-acceptance.md](docs/M08-acceptance.
 M09 范围与验证边界见 [docs/M09-acceptance.md](docs/M09-acceptance.md)，接口见 [contracts/exports.md](contracts/exports.md)。
 
 M10 验收矩阵与证据见 [docs/M10-acceptance.md](docs/M10-acceptance.md)，生产准备与恢复流程见 [deploy/production-readiness.md](deploy/production-readiness.md)。
+
+开发加固验收通过：代码提交 `61fedfbab3e2a46a7a4e1c863e16be75e8451a8e`，后端404单元+106真实MySQL/Redis集成、前端69单元+83浏览器测试，以及空库/升级/故障恢复/新数据卷备份还原均通过。新增容量限制不删除数据；生产验收仍受上述真实联调、业务、性能与运维条件阻断。完整证据见M10验收文档。
