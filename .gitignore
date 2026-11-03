@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+**/target/
+**/node_modules/
+**/dist/
+**/coverage/
+**/playwright-report/
+**/test-results/
+*.log
+*.iml
+.idea/
+.vscode/
+.DS_Store
+deploy/data/
+local-secrets/

@@ -1,0 +1,64 @@
+name: Backend verification
+on:
+  push:
+    branches: [main, dev20261103]
+    paths: ['server/**', '.github/workflows/backend.yml']
+  pull_request:
+    paths: ['server/**', '.github/workflows/backend.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.4.13
+        env:
+          MYSQL_DATABASE: datalens
+          MYSQL_USER: datalens
+          MYSQL_PASSWORD: ci-only-datalens-test-password
+          MYSQL_ROOT_PASSWORD: ci-only-root-test-password
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+      redis:
+        image: redis:7.4.12-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s --health-timeout=3s --health-retries=15
+    env:
+      DATALENS_DB_URL: jdbc:mysql://127.0.0.1:3306/datalens?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&sslMode=DISABLED&allowPublicKeyRetrieval=true
+      DATALENS_DB_USERNAME: datalens
+      DATALENS_DB_PASSWORD: ci-only-datalens-test-password
+      DATALENS_REDIS_HOST: 127.0.0.1
+      DATALENS_REDIS_PORT: 6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: server/pom.xml
+      - name: Verify toolchain
+        run: java -version && mvn -version
+      - name: Compile, unit test and real MySQL/Redis integration test
+        run: mvn -B -ntp -f server/pom.xml verify -Pintegration
+      - name: Package and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-verification
+          path: |
+            server/target/surefire-reports/
+            server/target/failsafe-reports/
+            server/target/datalens-server.jar
+          if-no-files-found: warn
+          retention-days: 7

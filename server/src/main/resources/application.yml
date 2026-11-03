@@ -1,0 +1,68 @@
+server:
+  address: ${DATALENS_BIND_ADDRESS:127.0.0.1}
+  port: ${DATALENS_PORT:8080}
+  shutdown: graceful
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        secure: ${DATALENS_COOKIE_SECURE:true}
+        same-site: lax
+spring:
+  application:
+    name: datalens-server
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    url: ${DATALENS_DB_URL:jdbc:mysql://127.0.0.1:13306/datalens?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&sslMode=DISABLED&allowPublicKeyRetrieval=true}
+    username: ${DATALENS_DB_USERNAME:datalens}
+    password: ${DATALENS_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 1
+      connection-timeout: 5000
+      validation-timeout: 2000
+  flyway:
+    enabled: true
+    clean-disabled: true
+    baseline-on-migrate: false
+    validate-on-migrate: true
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${DATALENS_REDIS_HOST:127.0.0.1}
+      port: ${DATALENS_REDIS_PORT:16379}
+      password: ${DATALENS_REDIS_PASSWORD:}
+      connect-timeout: 2s
+      timeout: 2s
+  servlet:
+    multipart:
+      enabled: false
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db,redis
+logging:
+  pattern:
+    level: '%5p [requestId=%X{requestId:-}]'
+datalens:
+  version: '0.1.0'

@@ -1,0 +1,75 @@
+package com.datalens.foundation;
+
+import com.datalens.common.web.RequestIdFilter;
+import java.time.Duration;
+import java.util.UUID;
+import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.web.FilterChainProxy;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
+import static org.assertj.core.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+/** Requires disposable MySQL 8.4 and Redis. Run with -Pintegration, never against production. */
+@SpringBootTest
+class FoundationIT {
+    @Autowired WebApplicationContext context;
+    @Autowired RequestIdFilter traceFilter;
+    @Autowired FilterChainProxy springSecurityFilterChain;
+    @Autowired Flyway flyway;
+    @Autowired JdbcTemplate jdbc;
+    @Autowired StringRedisTemplate redis;
+    private MockMvc mvc;
+
+    @BeforeEach void setUp() {
+        mvc = MockMvcBuilders.webAppContextSetup(context).addFilters(traceFilter, springSecurityFilterChain).build();
+    }
+
+    @Test void realMySqlMigrationAndMapperWorkWithoutModelOrStarRocks() throws Exception {
+        mvc.perform(get("/api/v1/system/info")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("DataLens"))
+                .andExpect(jsonPath("$.data.stage").value("M00"))
+                .andExpect(jsonPath("$.data.enabledModules.length()").value(1));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sys_platform_setting", Integer.class)).isEqualTo(1);
+    }
+
+    @Test void migrationIsRepeatableWithoutReseeding() {
+        assertThat(flyway.migrate().migrationsExecuted).isZero();
+        assertThat(flyway.migrate().migrationsExecuted).isZero();
+    }
+
+    @Test void undisclosedRoutesAreDeniedByDefault() throws Exception {
+        mvc.perform(get("/api/v1/charts")).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+        mvc.perform(get("/actuator/env")).andExpect(status().isUnauthorized());
+    }
+
+    @Test void unsafeRequestsHaveCsrfProtection() throws Exception {
+        mvc.perform(post("/api/v1/system/info")).andExpect(status().isForbidden());
+    }
+
+    @Test void healthProbesAreRealAndDoNotExposeDependencyDetails() throws Exception {
+        mvc.perform(get("/actuator/health/liveness")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+        mvc.perform(get("/actuator/health/readiness")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP")).andExpect(jsonPath("$.components").doesNotExist());
+    }
+
+    @Test void redisWorksWithoutBecomingPersistentFactSource() {
+        String key = "datalens:integration:" + UUID.randomUUID();
+        try {
+            redis.opsForValue().set(key, "probe", Duration.ofSeconds(30));
+            assertThat(redis.opsForValue().get(key)).isEqualTo("probe");
+        } finally {
+            redis.delete(key);
+        }
+    }
+}
