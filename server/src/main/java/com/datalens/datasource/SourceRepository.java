@@ -10,8 +10,9 @@ import static com.datalens.datasource.SourceModels.*;
 
 @Repository
 public class SourceRepository {
-    final JdbcTemplate db;
+    private final JdbcTemplate db;
     public SourceRepository(JdbcTemplate db) {this.db=db;}
+    public JdbcTemplate database() {return db;}
     SourceView sourceRow(ResultSet r,int index) throws SQLException {
         var last=r.getTimestamp("last_harvest_at");String id=r.getString("id");
         return new SourceView(id,r.getString("name"),r.getString("host"),r.getInt("port"),r.getString("catalog_name"),

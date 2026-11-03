@@ -34,7 +34,7 @@ public class SourceService {
         SourceView saved=tx.execute(status->{
             // Shared existing DB lock serializes bounded source creation across app instances.
             repository.lockAdministration(actor);
-            if(create && repository.db.queryForObject("SELECT COUNT(*) FROM ds_source",Long.class)>=100)
+            if(create && repository.database().queryForObject("SELECT COUNT(*) FROM ds_source",Long.class)>=100)
                 throw new DomainException(422,"SOURCE_LIMIT","最多可配置 100 个数据源");
             String credential;
             if(input.password()!=null && !input.password().isBlank()) credential=secrets.encrypt(sourceId,input.password());
@@ -71,10 +71,10 @@ public class SourceService {
             var current=repository.source(id,true);
             if(!current.view().enabled()) throw new DomainException(409,"SOURCE_DISABLED","数据源已停用");
             if("RUNNING".equals(current.view().harvestStatus()) &&
-                repository.db.queryForObject("SELECT COUNT(*) FROM ds_source WHERE id=? AND harvest_started_at > CURRENT_TIMESTAMP - INTERVAL 2 MINUTE",Long.class,id)>0)
+                repository.database().queryForObject("SELECT COUNT(*) FROM ds_source WHERE id=? AND harvest_started_at > CURRENT_TIMESTAMP - INTERVAL 2 MINUTE",Long.class,id)>0)
                 throw new DomainException(409,"HARVEST_RUNNING","元数据采集已在运行");
             // A new generation also prevents a stale/crashed harvester from publishing after recovery.
-            repository.db.update("UPDATE ds_source SET harvest_status='RUNNING',harvest_started_at=CURRENT_TIMESTAMP(6),version=version+1,last_error_code=NULL WHERE id=?",id);
+            repository.database().update("UPDATE ds_source SET harvest_status='RUNNING',harvest_started_at=CURRENT_TIMESTAMP(6),version=version+1,last_error_code=NULL WHERE id=?",id);
             return repository.source(id,false);
         });
         try(var connection=pools.open(source)) {
@@ -89,7 +89,7 @@ public class SourceService {
         } catch(Exception e) {
             String code=e instanceof DomainException d && "METADATA_LIMIT".equals(d.code())?"METADATA_LIMIT":"METADATA_HARVEST_FAILED";
             tx.executeWithoutResult(status->{
-                repository.db.update("UPDATE ds_source SET harvest_status='FAILED',last_error_code=? WHERE id=? AND version=?",code,id,source.view().version());
+                repository.database().update("UPDATE ds_source SET harvest_status='FAILED',last_error_code=? WHERE id=? AND version=?",code,id,source.view().version());
                 audit.append(actor.id(),"SOURCE_HARVEST","SOURCE",id,"FAILED",requestId);
             });
             if(e instanceof org.springframework.security.core.AuthenticationException authentication) throw authentication;

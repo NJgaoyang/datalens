@@ -22,7 +22,7 @@ public class SubjectService {
         var actor=permissions.requireSuperAdmin();
         repository.lockAdministration(actor);
         boolean create=id==null;
-        if(create && repository.db.queryForObject("SELECT COUNT(*) FROM ds_subject",Long.class)>=100)
+        if(create && repository.database().queryForObject("SELECT COUNT(*) FROM ds_subject",Long.class)>=100)
             throw new DomainException(422,"SUBJECT_LIMIT","最多可配置 100 个业务主题");
         if(!create) repository.subject(id);
         repository.source(input.sourceId(),true);
@@ -30,7 +30,7 @@ public class SubjectService {
         if(!known.containsAll(input.fields()) || !known.containsAll(input.deniedFields()))
             throw SourceService.invalid("主题字段必须存在于最新采集的授权元数据中");
         for(long user:new HashSet<>(input.userIds()))
-            if(repository.db.queryForObject("SELECT COUNT(*) FROM sys_user WHERE id=? AND enabled=TRUE",Long.class,user)==0)
+            if(repository.database().queryForObject("SELECT COUNT(*) FROM sys_user WHERE id=? AND enabled=TRUE",Long.class,user)==0)
                 throw SourceService.invalid("授权用户不存在或已停用");
         String subjectId=create?UUID.randomUUID().toString():id;
         repository.saveSubject(subjectId,input,create);
