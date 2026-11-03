@@ -41,6 +41,7 @@ const navigation = [
       <div class="sidebar-bottom">
         <RouterLink v-if="session.user?.role === 'SUPER_ADMIN'" to="/settings" class="nav-item" :class="{ active: route.path === '/settings' }"><span class="nav-symbol" aria-hidden="true">⚙</span>用户管理</RouterLink>
         <RouterLink v-if="session.user?.role === 'SUPER_ADMIN'" to="/sources" class="nav-item" :class="{ active: route.path === '/sources' }"><span class="nav-symbol" aria-hidden="true">▤</span>数据源管理</RouterLink>
+        <RouterLink v-if="session.user?.role === 'SUPER_ADMIN'" to="/model" class="nav-item" :class="{ active: route.path === '/model' }"><span class="nav-symbol" aria-hidden="true">◇</span>模型配置</RouterLink>
         <p>独立部署 · 只读分析</p>
       </div>
     </aside>

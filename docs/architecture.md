@@ -7,7 +7,7 @@ Independent Vue application and Java 21 Spring Boot modular monolith. MySQL stor
 The committed manifests and lockfile are authoritative. Existing verified dependencies are preserved:
 
 - Java 21; Maven 3.9.x.
-- Spring Boot 4.0.9; Spring AI 2.0.2 BOM (no model starter yet).
+- Spring Boot 4.0.9; Spring AI 2.0.2 BOM + spring-ai-model schema converter; explicit bounded HTTP transport, no auto-configured model starter or automatic tool loop.
 - MyBatis-Plus 3.5.18 Boot 4 starter; Flyway and MySQL connector managed by Boot.
 - JSQLParser 5.3; StarRocks official JDBC 1.1.1; actual 3.3.22 TLS compatibility remains unverified.
 - MySQL 8.4.8; Redis 7.4.2.
