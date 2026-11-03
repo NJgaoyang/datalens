@@ -7,7 +7,7 @@ import { listSources, listSubjects, metadata, saveSubject, fieldKey, parseFields
 const admin = computed(() => session.user?.role === 'SUPER_ADMIN');
 const subjects = ref<Subject[]>([]), sources = ref<Source[]>([]), columns = ref<Column[]>([]), snapshot = ref<Column[]>([]);
 const loading = ref(false), busy = ref(false), dialog = ref(false), error = ref(''), selected = ref(''), editing = ref<string>();
-const form = reactive({ name: '', sourceId: '', fields: '', deniedFields: '', userIds: '', shareScope: 'NONE' as 'NONE'|'AUTHORIZED_USERS' });
+const form = reactive({ name: '', sourceId: '', fields: '', deniedFields: '', userIds: '', shareScope: 'NONE' as 'NONE'|'AUTHORIZED_USERS'|'ALL_AUTHENTICATED' });
 let active: AbortController|undefined; let snapshotRequest: AbortController|undefined; let alive = true;
 async function reload() {
   active?.abort(); const controller = new AbortController(); active = controller; loading.value = true; error.value = ''; columns.value = []; selected.value = '';
@@ -67,7 +67,7 @@ onMounted(reload); onUnmounted(() => { alive = false; active?.abort(); snapshotR
       <el-form-item label="允许字段（每行 table.column）"><el-input v-model="form.fields" aria-label="允许字段" type="textarea" :rows="4"/></el-form-item>
       <el-form-item label="禁止字段（优先于允许字段）"><el-input v-model="form.deniedFields" aria-label="禁止字段" type="textarea" :rows="3"/></el-form-item>
       <el-form-item label="授权用户 ID（逗号或换行分隔）"><el-input v-model="form.userIds" aria-label="授权用户 ID" placeholder="例如：2, 3"/><p class="scope-note">请在用户管理确认账号 ID。空列表不授权普通用户。</p></el-form-item>
-      <el-form-item label="结果共享范围"><el-select v-model="form.shareScope" aria-label="结果共享范围" :disabled="busy"><el-option label="不可共享" value="NONE"/><el-option label="仅授权用户" value="AUTHORIZED_USERS"/></el-select></el-form-item>
+      <el-form-item label="结果共享范围"><el-select v-model="form.shareScope" aria-label="结果共享范围" :disabled="busy"><el-option label="不可共享" value="NONE"/><el-option label="仅授权用户" value="AUTHORIZED_USERS"/><el-option label="允许共享给全体有效用户" value="ALL_AUTHENTICATED"/></el-select></el-form-item>
       <p class="scope-note">允许字段必须存在于最新成功采集快照，禁止字段始终优先。此处仅定义访问范围，不执行查询或创建共享资产。</p>
       <div class="dialog-actions"><el-button :disabled="busy" @click="dialog = false">取消</el-button><el-button type="primary" native-type="submit" :loading="busy">保存主题</el-button></div>
     </fieldset></el-form>

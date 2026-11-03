@@ -21,12 +21,12 @@ public class ChartStore {
     void lock(){db.queryForObject("SELECT setting_value FROM sys_platform_setting WHERE setting_key='chart.lock' FOR UPDATE",String.class);}
     static DomainException missing(){return new DomainException(404,"CHART_NOT_FOUND","图表或预览不存在");}
     public Summary chart(String id) {
-        var rows=db.query("SELECT * FROM chart WHERE id=?",(r,n)->new Summary(r.getString("id"),r.getString("name"),r.getLong("owner_id"),r.getLong("version"),r.getString("revision_id"),r.getTimestamp("updated_at").toInstant()),id);
+        var rows=db.query("SELECT * FROM chart WHERE id=?",(r,n)->new Summary(r.getString("id"),r.getString("name"),r.getLong("owner_id"),r.getLong("version"),r.getString("revision_id"),r.getTimestamp("updated_at").toInstant(),r.getString("visibility"),r.getBoolean("deleted")),id);
         if(rows.isEmpty())throw missing();return rows.getFirst();
     }
     public PageResult<Summary> list(long actor,int page,int size) {
-        var items=db.query("SELECT * FROM chart WHERE owner_id=? ORDER BY updated_at DESC,id LIMIT ? OFFSET ?",(r,n)->new Summary(r.getString("id"),r.getString("name"),r.getLong("owner_id"),r.getLong("version"),r.getString("revision_id"),r.getTimestamp("updated_at").toInstant()),actor,size,(page-1)*size);
-        return new PageResult<>(items,db.queryForObject("SELECT COUNT(*) FROM chart WHERE owner_id=?",Long.class,actor),page,size);
+        var items=db.query("SELECT * FROM chart WHERE deleted=FALSE AND owner_id=? ORDER BY updated_at DESC,id LIMIT ? OFFSET ?",(r,n)->new Summary(r.getString("id"),r.getString("name"),r.getLong("owner_id"),r.getLong("version"),r.getString("revision_id"),r.getTimestamp("updated_at").toInstant(),r.getString("visibility"),r.getBoolean("deleted")),actor,size,(page-1)*size);
+        return new PageResult<>(items,db.queryForObject("SELECT COUNT(*) FROM chart WHERE deleted=FALSE AND owner_id=?",Long.class,actor),page,size);
     }
     public String definition(String chartId,String revisionId){var rows=db.queryForList("SELECT definition_json FROM chart_revision WHERE chart_id=? AND id=?",String.class,chartId,revisionId);if(rows.isEmpty())throw missing();return rows.getFirst();}
     public PreviewRow preview(String id){var rows=db.query("SELECT * FROM chart_preview WHERE id=?",(r,n)->new PreviewRow(r.getString("id"),r.getLong("actor_id"),r.getLong("auth_version"),r.getString("definition_json"),r.getString("resolved_parameters_json"),r.getString("task_id"),r.getString("saved_chart_id")),id);if(rows.isEmpty())throw missing();return rows.getFirst();}
@@ -38,18 +38,20 @@ public class ChartStore {
     }
     public void bindPreview(String id,String taskId){db.update("UPDATE chart_preview SET task_id=? WHERE id=? AND (task_id IS NULL OR task_id=?)",taskId,id,taskId);}
     public Summary save(CurrentActor actor,PreviewRow preview,String name,String requestId) {
-        return tx.execute(s->{lock();var current=preview(preview.id());if(current.savedChartId()!=null){var chart=chart(current.savedChartId());String savedName=db.queryForObject("SELECT saved_name FROM chart_preview WHERE id=?",String.class,current.id());if(!Objects.equals(savedName,name))throw conflict();return chart;}
+        return tx.execute(s->{lock();var current=preview(preview.id());if(current.savedChartId()!=null){var chart=chart(current.savedChartId());if(chart.deleted()||(chart.ownerId()!=actor.id()&&!"SUPER_ADMIN".equals(actor.role())))throw new org.springframework.security.access.AccessDeniedException("Saved chart ownership changed");String savedName=db.queryForObject("SELECT saved_name FROM chart_preview WHERE id=?",String.class,current.id());if(!Objects.equals(savedName,name))throw conflict();return chart;}
             String id=UUID.randomUUID().toString(),revision=UUID.randomUUID().toString();
             db.update("INSERT INTO chart(id,owner_id,name,revision_id) VALUES(?,?,?,?)",id,actor.id(),name,revision);
             db.update("INSERT INTO chart_revision(id,chart_id,version,definition_json,creator_id) VALUES(?,?,1,?,?)",revision,id,preview.definition(),actor.id());
             db.update("UPDATE chart_preview SET saved_chart_id=?,saved_name=? WHERE id=?",id,name,preview.id());audit.append(actor.id(),"CHART_SAVE","CHART",id,"SUCCEEDED",requestId);return chart(id);
         });
     }
-    public Summary publish(CurrentActor actor,String chartId,PreviewRow preview,String name,long expected,String requestId) {
-        return tx.execute(s->{lock();var chart=chart(chartId);if(chart.ownerId()!=actor.id())throw new org.springframework.security.access.AccessDeniedException("Chart belongs to another user");
+    public Summary publish(CurrentActor actor,String chartId,PreviewRow preview,String name,long expected,String requestId) {return publish(actor,chartId,preview,name,expected,requestId,()->{});}
+    public Summary publish(CurrentActor actor,String chartId,PreviewRow preview,String name,long expected,String requestId,Runnable validate) {
+        return tx.execute(s->{lock();var chart=chart(chartId);if(chart.deleted() || (chart.ownerId()!=actor.id()&&!"SUPER_ADMIN".equals(actor.role())))throw new org.springframework.security.access.AccessDeniedException("Chart belongs to another user");
             if(chart.version()!=expected)throw new DomainException(409,"CHART_VERSION_CONFLICT","图表已更新，请重新预览");
-            String revision=UUID.randomUUID().toString();db.update("INSERT INTO chart_revision(id,chart_id,version,definition_json,creator_id) VALUES(?,?,?,?,?)",revision,chartId,expected+1,preview.definition(),actor.id());
-            db.update("UPDATE chart SET name=?,revision_id=?,version=version+1,updated_at=CURRENT_TIMESTAMP(6) WHERE id=?",name,revision,chartId);
+            validate.run();String revision=UUID.randomUUID().toString();db.update("INSERT INTO chart_revision(id,chart_id,version,definition_json,creator_id) VALUES(?,?,?,?,?)",revision,chartId,expected+1,preview.definition(),actor.id());
+            db.update("UPDATE chart SET name=?,revision_id=?,visibility='PRIVATE',version=version+1,updated_at=CURRENT_TIMESTAMP(6) WHERE id=?",name,revision,chartId);
+            db.update("DELETE FROM chart_share WHERE chart_id=?",chartId);
             audit.append(actor.id(),"CHART_PUBLISH","CHART",chartId,"SUCCEEDED",requestId);return chart(chartId);
         });
     }
@@ -60,5 +62,46 @@ public class ChartStore {
     public void success(String runId,Instant finished){db.update("UPDATE chart_run SET success_at=? WHERE id=?",java.sql.Timestamp.from(finished),runId);}
     public String latestTask(String chartId,String revision,long actor){var rows=db.queryForList("SELECT task_id FROM chart_run WHERE chart_id=? AND revision_id=? AND actor_id=? ORDER BY created_at DESC,id DESC LIMIT 1",String.class,chartId,revision,actor);return rows.isEmpty()?null:rows.getFirst();}
     public Instant lastSuccess(String chartId,String revision,long actor){var result=db.queryForObject("SELECT MAX(success_at) FROM chart_run WHERE chart_id=? AND revision_id=? AND actor_id=?",java.sql.Timestamp.class,chartId,revision,actor);return result==null?null:result.toInstant();}
+    public List<Long> shares(String id){return db.queryForList("SELECT user_id FROM chart_share WHERE chart_id=? ORDER BY user_id",Long.class,id);}
+    public PageResult<Summary> list(CurrentActor actor,String scope,int page,int size) {
+        boolean admin="SUPER_ADMIN".equals(actor.role());
+        String where=switch(scope){
+            case "mine" -> "deleted=FALSE AND owner_id=?";
+            case "shared" -> "deleted=FALSE AND owner_id<>? AND visibility='SPECIFIC' AND EXISTS(SELECT 1 FROM chart_share s WHERE s.chart_id=chart.id AND s.user_id=?)";
+            case "all" -> "deleted=FALSE AND visibility='ALL'";
+            case "admin" -> {if(!admin)throw new org.springframework.security.access.AccessDeniedException("Administrator required");yield "deleted=FALSE";}
+            case "trash" -> admin?"deleted=TRUE":"deleted=TRUE AND owner_id=?";
+            default -> throw new DomainException(400,"CHART_SCOPE_INVALID","图表列表范围无效");
+        };
+        var args=new ArrayList<Object>();for(int i=0;i<where.length();i++)if(where.charAt(i)=='?')args.add(actor.id());
+        long total=db.queryForObject("SELECT COUNT(*) FROM chart WHERE "+where,Long.class,args.toArray());
+        args.add(size);args.add((page-1)*size);
+        var items=db.query("SELECT * FROM chart WHERE "+where+" ORDER BY updated_at DESC,id LIMIT ? OFFSET ?",(r,n)->new Summary(r.getString("id"),r.getString("name"),r.getLong("owner_id"),r.getLong("version"),r.getString("revision_id"),r.getTimestamp("updated_at").toInstant(),r.getString("visibility"),r.getBoolean("deleted")),args.toArray());
+        return new PageResult<>(items,total,page,size);
+    }
+    /** Serialize ACL/admin mutations with publication and repeat resource ownership under the lock. */
+    public Summary manage(CurrentActor actor,String id,long expected,String action,String visibility,List<Long> recipients,Long owner,Runnable validate,String requestId){
+        return tx.execute(s->{lock();var c=chart(id);
+            boolean admin="SUPER_ADMIN".equals(actor.role());
+            if(c.ownerId()!=actor.id()&&!admin)throw new org.springframework.security.access.AccessDeniedException("Chart management denied");
+            if(c.version()!=expected)throw new DomainException(409,"CHART_VERSION_CONFLICT","图表已更新，请重新加载");
+            if((action.equals("RESTORE")&&!c.deleted())||(!action.equals("RESTORE")&&c.deleted()))throw conflict();
+            if(action.equals("TRANSFER")&&!admin)throw new org.springframework.security.access.AccessDeniedException("Administrator required");
+            validate.run();var oldRecipients=shares(id);
+            switch(action){
+                case "SHARE" -> {db.update("DELETE FROM chart_share WHERE chart_id=?",id);for(long user:recipients)db.update("INSERT INTO chart_share(chart_id,user_id) VALUES(?,?)",id,user);db.update("UPDATE chart SET visibility=? WHERE id=?",visibility,id);}
+                case "DELETE" -> {db.update("UPDATE chart SET deleted=TRUE,visibility='PRIVATE' WHERE id=?",id);db.update("DELETE FROM chart_share WHERE chart_id=?",id);}
+                case "RESTORE" -> db.update("UPDATE chart SET deleted=FALSE,visibility='PRIVATE' WHERE id=?",id);
+                case "TRANSFER" -> {db.update("UPDATE chart SET owner_id=?,visibility='PRIVATE' WHERE id=?",owner,id);db.update("DELETE FROM chart_share WHERE chart_id=?",id);}
+                default -> throw new IllegalArgumentException("Unknown chart action");
+            }
+            db.update("UPDATE chart SET version=version+1,updated_at=CURRENT_TIMESTAMP(6) WHERE id=?",id);
+            if(action.equals("RESTORE")||action.equals("TRANSFER")){
+                String revision=UUID.randomUUID().toString();db.update("INSERT INTO chart_revision(id,chart_id,version,definition_json,creator_id) VALUES(?,?,?,?,?)",revision,id,expected+1,definition(id,c.revisionId()),actor.id());db.update("UPDATE chart SET revision_id=? WHERE id=?",revision,id);
+            }
+            var changed=chart(id);db.update("INSERT INTO chart_management_event(chart_id,actor_id,action,old_owner_id,new_owner_id,old_visibility,new_visibility,old_recipients,new_recipients,chart_version,request_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)",id,actor.id(),action,c.ownerId(),changed.ownerId(),c.visibility(),changed.visibility(),oldRecipients.toString(),shares(id).toString(),changed.version(),requestId);
+            audit.append(actor.id(),"CHART_"+action,"CHART",id,"SUCCEEDED",requestId);return chart(id);
+        });
+    }
     static DomainException conflict(){return new DomainException(409,"CHART_REQUEST_CONFLICT","提交内容与已有操作不一致，请刷新后重试");}
 }

@@ -49,7 +49,7 @@ grep -q 'id="app"' test-results/compose/index.html
 curl --fail --silent --head http://127.0.0.1:8088/ > test-results/compose/html-headers.txt
 grep -qi 'X-Frame-Options: DENY' test-results/compose/html-headers.txt
 grep -qi "frame-ancestors 'none'" test-results/compose/html-headers.txt
-curl --fail --silent --max-time 5 http://127.0.0.1:8088/api/v1/system/info | jq --exit-status '.data.name == "DataLens" and .data.stage == "M04"' >/dev/null
+curl --fail --silent --max-time 5 http://127.0.0.1:8088/api/v1/system/info | jq --exit-status '.data.name == "DataLens" and .data.stage == "M05"' >/dev/null
 [[ $(curl --silent --max-time 5 -o test-results/compose/denied.json -w '%{http_code}' http://127.0.0.1:8088/api/v1/charts) == 401 ]]
 jq --exit-status '.code == "UNAUTHENTICATED"' test-results/compose/denied.json >/dev/null
 [[ $(query 'SELECT COUNT(*) FROM sys_platform_setting;') == 4 ]]

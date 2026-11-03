@@ -99,6 +99,7 @@ class QueryServiceTest {
     QueryPurposeAuthorization guard() {
         var guard=mock(QueryPurposeAuthorization.class);
         when(guard.supports("CHART")).thenReturn(true);
+        when(guard.executionActor(any(),any())).thenAnswer(inv->inv.getArgument(0));
         org.springframework.beans.factory.ObjectProvider<QueryPurposeAuthorization> provider=mock(org.springframework.beans.factory.ObjectProvider.class);
         when(provider.orderedStream()).thenAnswer(inv->java.util.stream.Stream.of(guard));
         service.setPurposeAuthorizations(provider);
@@ -189,6 +190,55 @@ class QueryServiceTest {
         service.submitForPurpose(purposeInput(),chartContext,"request");release.countDown();
         verify(store,timeout(3000)).finish(eq("task"),eq("FAILED"),eq("QUERY_ACCESS_REVOKED"),anyLong(),isNull(),eq(false));
         verify(store,never()).finish(anyString(),eq("SUCCEEDED"),any(),anyLong(),any(),anyBoolean());
+    }
+
+    @Test void sharedCapabilityUsesOwnerScopeButPreservesViewerOwnershipAndAuditActor() {
+        var guard=guard();var owner=new CurrentActor(99,"owner","USER",5);
+        when(guard.executionActor(actor,chartContext)).thenReturn(owner);
+        when(sources.authorize(actor,"subject")).thenThrow(new AccessDeniedException("Viewer has no subject access"));
+        when(sources.authorize(owner,"subject")).thenReturn(scope);
+        var row=purposeTask("SUCCEEDED",chartContext);
+        when(store.get("task")).thenReturn(row);
+        when(store.create(eq(actor),any(),anyString(),anyLong(),anyString(),anyString(),anyString(),anyString(),eq(chartContext))).thenReturn(row);
+        assertThat(service.submitForPurpose(purposeInput(),chartContext,"request").id()).isEqualTo("task");
+        verify(guard).validateSubmission(actor,chartContext,purposeInput());
+        verify(store).create(eq(actor),any(),anyString(),anyLong(),anyString(),anyString(),anyString(),anyString(),eq(chartContext));
+        verify(sources,never()).authorize(eq(actor),anyString());
+        when(permissions.current()).thenReturn(owner);
+        assertThatThrownBy(()->service.get("task")).isInstanceOf(AccessDeniedException.class);
+    }
+    @Test void purposeSubmissionCannotChangePublishedSqlOrParameters() {
+        var guard=guard();
+        doThrow(new AccessDeniedException("Not server-bound definition")).when(guard).validateSubmission(actor,chartContext,purposeInput());
+        assertThatThrownBy(()->service.submitForPurpose(purposeInput(),chartContext,"request")).isInstanceOf(AccessDeniedException.class);
+        verify(sources,never()).authorize(any(),anyString());
+        verify(store,never()).create(any(),any(),anyString(),anyLong(),anyString(),anyString(),anyString(),anyString(),any());
+    }
+    @Test void multipleMatchingPurposeGuardsAreRejected() {
+        var first=guard();var second=mock(QueryPurposeAuthorization.class);when(second.supports("CHART")).thenReturn(true);
+        org.springframework.beans.factory.ObjectProvider<QueryPurposeAuthorization> provider=mock(org.springframework.beans.factory.ObjectProvider.class);
+        when(provider.orderedStream()).thenAnswer(inv->java.util.stream.Stream.of(first,second));service.setPurposeAuthorizations(provider);
+        assertThatThrownBy(()->service.submitForPurpose(purposeInput(),chartContext,"request")).isInstanceOf(AccessDeniedException.class);
+        verify(first,never()).authorize(any(),any());verify(second,never()).authorize(any(),any());
+    }
+
+    @Test void sharedExecutorOpensOwnerScopeAndRechecksOriginalViewer() throws Exception {
+        var guard=guard();var owner=new CurrentActor(99,"owner","USER",5);
+        when(guard.executionActor(actor,chartContext)).thenReturn(owner);
+        when(sources.authorize(actor,"subject")).thenThrow(new AccessDeniedException("No direct subject grant"));
+        when(sources.authorize(owner,"subject")).thenReturn(scope);
+        when(store.create(eq(actor),any(),anyString(),anyLong(),anyString(),anyString(),anyString(),anyString(),eq(chartContext))).thenReturn(purposeTask("QUEUED",chartContext));
+        when(store.get("task")).thenReturn(purposeTask("RUNNING",chartContext));when(store.start("task")).thenReturn(true);
+        var connection=mock(Connection.class);var setup=mock(Statement.class);var statement=mock(PreparedStatement.class);
+        var rows=mock(ResultSet.class);var md=mock(ResultSetMetaData.class);
+        when(sources.open(owner,"subject",scope)).thenReturn(connection);when(connection.createStatement()).thenReturn(setup);
+        when(connection.prepareStatement(anyString())).thenReturn(statement);when(statement.executeQuery()).thenReturn(rows);
+        when(rows.getMetaData()).thenReturn(md);when(md.getColumnCount()).thenReturn(1);
+        when(md.getColumnLabel(1)).thenReturn("amount");when(md.getColumnTypeName(1)).thenReturn("DECIMAL");when(rows.next()).thenReturn(false);
+        service.submitForPurpose(purposeInput(),chartContext,"request");
+        verify(store,timeout(3000)).finish(eq("task"),eq("SUCCEEDED"),isNull(),anyLong(),anyString(),eq(false));
+        verify(sources).open(owner,"subject",scope);verify(sources,never()).authorize(eq(actor),anyString());
+        verify(guard,atLeast(4)).authorize(actor,chartContext);verify(guard,never()).authorize(eq(owner),any());
     }
 
 }

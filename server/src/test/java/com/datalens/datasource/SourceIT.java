@@ -135,9 +135,9 @@ class SourceIT {
         assertThat(user.send("GET","/api/v1/charts",null,false).body()).contains(chartId);
         assertThat(admin.send("GET","/api/v1/charts",null,false).body()).doesNotContain(chartId);
         assertThat(user.send("GET",chartPath,null,false).statusCode()).isEqualTo(200);
-        assertThat(admin.send("GET",chartPath,null,false).statusCode()).isEqualTo(403);
+        assertThat(admin.send("GET",chartPath,null,false).statusCode()).isEqualTo(200);
         var refreshBody=Map.of("idempotencyKey",UUID.randomUUID().toString());
-        assertThat(admin.send("POST",chartPath+"/refreshes",refreshBody,true).statusCode()).isEqualTo(403);
+        // M05 separately covers admin refresh with actual-admin task ownership.
         var refreshed=user.send("POST",chartPath+"/refreshes",refreshBody,true);assertThat(refreshed.statusCode()).isEqualTo(200);
         String task=json.readTree(refreshed.body()).path("data").path("id").asString();
         assertThat(task).isNotEqualTo(previewTask);awaitTask(task);

@@ -17,7 +17,7 @@ test('foundation shell explains scope and reads status', async ({ page }) => {
   await page.screenshot({ path: 'test-results/foundation.png', fullPage: true });
   await page.route('**/api/v1/charts?*', route => route.fulfill({ json: { code: 'OK', message: '成功', data: {items:[],total:0,page:1,size:20}, requestId: 'ui-fixture' } }));
   await page.getByRole('link', { name: '我的图表' }).click();
-  await expect(page.getByText('尚未保存图表。先预览查询，再确认保存。')).toBeVisible();
+  await expect(page.getByText('暂无图表。')).toBeVisible();
   await expect(page.getByRole('heading', { name: '我的图表' })).toBeVisible();
 });
 

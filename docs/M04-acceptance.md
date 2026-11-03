@@ -20,3 +20,12 @@ Task M04 depends on M03. Scope: chart/revision persistence, controlled query pre
 ## Remaining external acceptance
 
 M03 real StarRocks 3.3.22 TLS compatibility, actual query/cancel/timeout and resource-budget gates remain open. Mock/metadata MySQL tests do not close them. No live cluster was contacted or secrets requested. M04 real-data repeat-open/failure freshness demo remains subject to that gate. No production readiness claim.
+
+## Verified exact-commit CI
+
+Commit `99e6af59c65b58b1958eb3c9853a766beb58ae1f` completed successfully:
+- [Backend verification](https://github.com/NJgaoyang/datalens/actions/runs/41644665293)
+- [Frontend verification](https://github.com/NJgaoyang/datalens/actions/runs/41644665171)
+- [Disposable Docker acceptance](https://github.com/NJgaoyang/datalens/actions/runs/41644665177)
+
+These establish the previously pending CI gates for M04, not real StarRocks behavior.

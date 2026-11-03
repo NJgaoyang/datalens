@@ -3,7 +3,7 @@ export interface Field { tableName: string; columnName: string }
 export interface Column extends Field { sourceId: string; typeName: string; ordinalPosition: number; nullable: boolean }
 export interface SourceInput { name: string; host: string; port: number; catalog: string; database: string; username: string; password: string; enabled: boolean; tables: string[] }
 export interface Source extends Omit<SourceInput, 'password'> { id: string; version: number; harvestStatus: 'NEVER'|'RUNNING'|'SUCCEEDED'|'FAILED'; lastHarvestAt: string|null; lastErrorCode: string|null }
-export interface SubjectInput { name: string; sourceId: string; fields: Field[]; deniedFields: Field[]; userIds: number[]; shareScope: 'NONE'|'AUTHORIZED_USERS' }
+export interface SubjectInput { name: string; sourceId: string; fields: Field[]; deniedFields: Field[]; userIds: number[]; shareScope: 'NONE'|'AUTHORIZED_USERS'|'ALL_AUTHENTICATED' }
 export interface Subject extends SubjectInput { id: string }
 export const fieldKey = (field: Field) => `${field.tableName}.${field.columnName}`;
 export function parseFields(text: string): Field[] {

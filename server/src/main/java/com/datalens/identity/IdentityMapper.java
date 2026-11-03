@@ -3,6 +3,8 @@ import java.util.List;
 import org.apache.ibatis.annotations.*;
 @Mapper
 public interface IdentityMapper {
+    @Select("SELECT id,username FROM sys_user WHERE enabled=TRUE ORDER BY username,id LIMIT 1000")
+    List<AccountDirectory.Recipient> recipients();
     String COLUMNS = "id, username, password_hash, role, enabled, auth_version, failed_attempts, locked_until";
     @Select("SELECT " + COLUMNS + " FROM sys_user WHERE username=#{username} FOR UPDATE")
     UserAccount lockByUsername(String username);

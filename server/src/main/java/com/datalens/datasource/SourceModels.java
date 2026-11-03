@@ -28,7 +28,7 @@ public final class SourceModels {
         @NotEmpty @Size(max=1000) List<@NotNull @Valid Field> fields,
         @NotNull @Size(max=1000) List<@NotNull @Valid Field> deniedFields,
         @NotNull @Size(max=100) List<@NotNull @Positive Long> userIds,
-        @NotBlank @Pattern(regexp="NONE|AUTHORIZED_USERS") String shareScope) {}
+        @NotBlank @Pattern(regexp="NONE|AUTHORIZED_USERS|ALL_AUTHENTICATED") String shareScope) {}
     public record SubjectView(String id,String name,String sourceId,List<Field> fields,List<Field> deniedFields,
         List<Long> userIds,String shareScope) {}
 }

@@ -16,5 +16,22 @@ it('uses independently authorized chart result routes and preserves exact values
 });
 it('stable refresh keys can reconcile uncertain outcomes, and list supports pagination', async () => {
   const mock = vi.fn().mockResolvedValueOnce(response({token:'csrf',headerName:'X-CSRF-TOKEN'})).mockImplementation(() => Promise.resolve(response({})));vi.stubGlobal('fetch',mock);
-  await refreshChart('c1','same-key');await refreshChart('c1','same-key');expect(mock.mock.calls[1]?.[1].body).toBe(mock.mock.calls[2]?.[1].body);await listCharts(undefined,2);expect(mock.mock.calls[3]?.[0]).toBe('/api/v1/charts?page=2&size=20');
+  await refreshChart('c1','same-key');await refreshChart('c1','same-key');expect(mock.mock.calls[1]?.[1].body).toBe(mock.mock.calls[2]?.[1].body);await listCharts(undefined,2);expect(mock.mock.calls[3]?.[0]).toBe('/api/v1/charts?page=2&size=20&scope=mine');
+});
+it('encodes management routes, includes optimistic versions and scopes, and sends no SQL', async () => {
+  const {listChartRecipients,updateChartSharing,deleteChart,restoreChart,transferChart} = await import('./charts');
+  const mock = vi.fn().mockResolvedValueOnce(response({token:'csrf',headerName:'X-CSRF-TOKEN'})).mockImplementation(() => Promise.resolve(response({})));
+  vi.stubGlobal('fetch',mock);
+  await updateChartSharing('c/1','SPECIFIC',[3],4);
+  await deleteChart('c/1',5); await restoreChart('c/1',6); await transferChart('c/1',3,7);
+  await listCharts(undefined,3,'trash'); await listChartRecipients();
+  expect(mock.mock.calls[1]?.[0]).toBe('/api/v1/charts/c%2F1/sharing');
+  expect(JSON.parse(mock.mock.calls[1]?.[1].body)).toEqual({visibility:'SPECIFIC',userIds:[3],expectedVersion:4});
+  expect(mock.mock.calls[2]?.[0]).toBe('/api/v1/charts/c%2F1?expectedVersion=5');
+  expect(mock.mock.calls[2]?.[1].method).toBe('DELETE');
+  expect(mock.mock.calls[2]?.[1].body).toBeUndefined();
+  expect(JSON.parse(mock.mock.calls[3]?.[1].body)).toEqual({expectedVersion:6});
+  expect(JSON.parse(mock.mock.calls[4]?.[1].body)).toEqual({ownerId:3,expectedVersion:7});
+  expect(mock.mock.calls[5]?.[0]).toBe('/api/v1/charts?page=3&size=20&scope=trash');
+  expect(mock.mock.calls[6]?.[0]).toBe('/api/v1/charts/recipients');
 });

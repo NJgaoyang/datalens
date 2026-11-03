@@ -31,6 +31,26 @@ public class QuerySourceAccess {
         if(columns.isEmpty()) throw new AccessDeniedException("No allowed fields");
         return new Scope(source.id(),source.version(),columns);
     }
+    /** Sharing is a resource capability; it does not grant recipients arbitrary subject queries. */
+    @Transactional(readOnly=true) public Scope authorizeSharing(CurrentActor owner,String subjectId,String visibility,List<Long> recipients) {
+        Scope scope=authorize(owner,subjectId);
+        var subject=repository.subject(subjectId);
+        if(recipients==null || recipients.stream().anyMatch(id->id==null || id<=0))
+            throw new AccessDeniedException("Invalid sharing recipients");
+        if("PRIVATE".equals(visibility)) {
+            if(!recipients.isEmpty())throw new AccessDeniedException("Private chart has recipients");
+            return scope;
+        }
+        if("ALL".equals(visibility)) {
+            if(!"ALL_AUTHENTICATED".equals(subject.shareScope()) || !recipients.isEmpty())
+                throw new AccessDeniedException("Subject does not permit sharing to all users");
+        } else if("SPECIFIC".equals(visibility)) {
+            if(recipients.isEmpty() || !("ALL_AUTHENTICATED".equals(subject.shareScope()) ||
+                "AUTHORIZED_USERS".equals(subject.shareScope()) && subject.userIds().containsAll(recipients)))
+                throw new AccessDeniedException("Subject does not permit these sharing recipients");
+        } else throw new AccessDeniedException("Invalid chart visibility");
+        return scope;
+    }
     public Connection open(CurrentActor actor,String subjectId,Scope expected) throws SQLException {
         Scope current=authorize(actor,subjectId);
         if(!current.equals(expected)) throw new AccessDeniedException("Query scope changed");

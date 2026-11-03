@@ -19,6 +19,12 @@ public final class ChartModels {
     public record Publish(@NotBlank @Size(max=160) String name,@NotBlank String previewId,@Min(1) long expectedVersion) {}
     public record Refresh(@NotBlank @Pattern(regexp="[A-Za-z0-9_-]{8,64}") String idempotencyKey) {}
     public record Preview(String id,Definition definition,String taskId) {}
-    public record Summary(String id,String name,long ownerId,long version,String revisionId,Instant updatedAt) {}
-    public record Detail(String id,String name,long ownerId,long version,String revisionId,Definition definition,String latestTaskId,Instant lastSuccessAt) {}
+    public record Sharing(@NotNull @Pattern(regexp="PRIVATE|ALL|SPECIFIC") String visibility,
+        @NotNull @Size(max=100) List<@NotNull @Positive Long> userIds,@Min(1) long expectedVersion) {}
+    public record Version(@Min(1) long expectedVersion) {}
+    public record Transfer(@Positive long ownerId,@Min(1) long expectedVersion) {}
+    public record Summary(String id,String name,long ownerId,long version,String revisionId,Instant updatedAt,String visibility,boolean deleted) {
+        public Summary(String id,String name,long ownerId,long version,String revisionId,Instant updatedAt){this(id,name,ownerId,version,revisionId,updatedAt,"PRIVATE",false);}
+    }
+    public record Detail(String id,String name,long ownerId,long version,String revisionId,Definition definition,String latestTaskId,Instant lastSuccessAt,String visibility,List<Long> userIds,boolean deleted,boolean canManage) {}
 }
