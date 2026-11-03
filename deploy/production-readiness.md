@@ -1,0 +1,44 @@
+# Production preparation and recovery runbook
+
+**NOT AUTHORIZED FOR DEPLOYMENT / NOT PRODUCTION-ACCEPTED.** This is an operator plan, not a runnable production stack. The shipped Compose file is localhost development/disposable CI only. Passing CI does not authorize a merge, deployment, provider contact or StarRocks connection.
+
+## Release gates and ownership
+
+Release owner records immutable commit SHA and image digests, full backend/frontend/Compose evidence, dependency/security review, business owner approval and operator sign-off. All blocked gates in `docs/M10-acceptance.md` must be resolved or explicitly scoped out through a new agreed product requirement; never silently relabel them passed. No production SLA, accuracy, RPO or RTO is claimed.
+
+## Required deployment design
+
+- Exactly one application instance per metadata database. The dedicated MySQL advisory lock excludes a second query executor. Do not enable horizontal autoscaling or rolling overlap. Drain ingress/work, stop the old instance, then start the candidate. Keep external database-side query observation available during drains/restarts.
+- Terminate trusted TLS at the approved ingress, retain `DATALENS_COOKIE_SECURE=true`, HttpOnly/SameSite cookies and CSRF. Only trust forwarded headers from that ingress. Preserve private/no-store responses, export attachment headers and request-size/time limits. Restrict health endpoints to operational consumers; never expose management detail/env routes.
+- Isolate MySQL, Redis and Java ports. Require verified MySQL/Redis transport, authentication, least-privilege accounts and network ACLs appropriate to the actual infrastructure. The supplied MySQL `sslMode=DISABLED`, Redis without auth, development HTTP and cookie override are NOT production settings. Do not simply expose port 8088 publicly.
+- Prepare private secret injection, access logging redaction and rotation. Preserve independent 32-byte datasource/model AES wrapping keys in separately protected escrow. Never put them or DB/provider credentials in a Git commit, image, build argument, screenshot, CI artifact or ordinary log. Disabling a provider does not remove the need to retain the key to recover its saved encrypted credentials.
+- Bootstrap one authorized superadmin using a unique credential through an approved secret path, verify access, then remove bootstrap variables. No registration/default password. Backups carry password hashes and sensitive analytical data and require encryption and access controls.
+- Configure explicit source endpoint allowlists and minimum read-only StarRocks permissions. Verify TLS and driver behavior on the actual version. Model adapter accepts only permitted numeric public IPv4 HTTPS endpoints with valid IP-SAN certificates; a hostname-only provider is not automatically compatible. Do not relax TLS or endpoint checks to make a test pass.
+- Set CPU/RAM/JVM heap, connection limits and storage quotas after representative tests. Add alerts for readiness, lease loss, HTTP errors/latency, disk/backup age, query/export saturation, model reservation consumption and source quarantine. QueryExecutor readiness fails closed on lease loss; liveness intentionally does not trigger automatic replay.
+- Approve a dependency/image vulnerability policy and SBOM. Direct Java/frontend versions and lockfile are pinned; container base tags and GitHub action major tags are currently mutable, so byte-identical supply-chain reproducibility is NOT established. Record/pin reviewed image/action digests and resolved transitive artifacts for a release. Scanning and remediation approval remain release gates.
+
+## Upgrade and rollback rehearsal
+
+1. In isolated, authorized infrastructure, restore the prior approved database snapshot and matching secret keys. Inventory schema versions/checksums, image digest, configuration and access policies. Stop writers and verify database-side analytical quiescence.
+2. Take a consistent full metadata backup and test its integrity; record a separate encrypted key/config backup and the recovery point. Never omit grant generations, auth versions, model budget/idempotency rows, source quarantine records or semantic/chart immutable snapshots.
+3. Start one candidate. Flyway validates old checksums and applies only new migrations. No `clean`, `repair`, baseline override, migration edits or ad-hoc DDL. CI exercises V1–V9→V10 and repeat migration; this is not proof of every historical release upgrade.
+4. Verify readiness, login/CSRF, private/shared metadata, saved-chart definitions, semantic version binding, grant generation, audit actor and interrupted-task status. Real query checks need separately approved StarRocks access. Do not replay uncertain provider requests or analytical queries.
+5. If application rollback is needed, first verify old-code compatibility with the additive schema and new records in an isolated rehearsal. Roll back the image without deleting migration history only when that compatibility is proven. CI does NOT run an old application binary against the upgraded schema. If incompatible, stop writes and restore the matching prior full snapshot into a new environment, accepting the explicitly agreed data-loss window. Do not drop new tables to pretend rollback succeeded.
+6. Record actual durations, accepted recovery-point loss and operator decisions. Cutover or destructive cleanup is a separate authorized operation.
+
+## Backup and restore drill
+
+CI's synthetic drill stops web/server, makes an InnoDB consistent `mysqldump` including Flyway history, restores into a distinct empty project/volume, compares full ordered logical dumps, starts the same image and verifies readiness, disabled identity, audit and exact-value/budget data. Dumps remain temporary and are deleted; only sanitized logs/checksum are retained. This proves a basic logical round trip, not production RPO/RTO, encryption escrow, point-in-time recovery or disaster failover.
+
+For real operations, schedule encrypted full backups plus binlogs if an agreed RPO requires them. Verify completion and off-host retention/access, regularly restore into an isolated destination with matching versions and keys, then prove authentication and policy behavior. Do not restore Redis sessions from an older snapshot: use a fresh isolated Redis namespace/instance and require re-login. Never connect a restored test application to live StarRocks/model endpoints accidentally. Preserve budgets and idempotency records to avoid replay/spending. Record independent SHA-256/integrity checks and measured RPO/RTO. Restore complete database state, not selected tables.
+
+## Dependency and worker recovery
+
+- Redis outage: readiness goes DOWN. On recovery verify login/CSRF/session behavior; metadata remains authoritative. CI verifies dependency recovery, not production Redis failover.
+- MySQL restart / executor lease loss: readiness stays DOWN even if the connection pool reconnects. Stop admission, inspect in-flight analytics and source quarantine, then perform a controlled single-process restart to reacquire the lease. Startup records unfinished work and prevents blind replay. CI verifies empty-workload lease loss and controlled restart; loaded live-driver recovery remains untested.
+- Query cancellation unconfirmed / interrupted execution: `CANCEL_UNCONFIRMED` or `RECOVERY_UNCONFIRMED` quarantines the source. Check the real database for residual queries with an authorized operator. No automatic "clear quarantine" API exists. A reviewed maintenance procedure with retained audit evidence is required before changing quarantine records. A terminal UI state does not prove database termination.
+- Provider outage or uncertain request: show explicit failure/interrupted state; do not automatically repeat an uncertain paid request. Saved charts remain provider-independent. Reservations are not a currency billing ledger.
+
+## Open engineering blockers before scale
+
+Persisted query results/SQL, previews/runs/revisions, conversations, audit and model-call history have no global retention/quota policy. Per-item bounds do not prevent eventual storage exhaustion. Implement an approved lifecycle preserving audit, privacy, idempotency, grants and quarantine semantics, with alerts and capacity refusal, before production scale. Chart listing scans and authorizes all candidate assets before paginating; validate representative maximum cardinality and optimize without leaking metadata/counts. JDBC `getString()` can allocate a large cell before the 2 MB serialized result cap; verify bounded behavior under real-driver large-cell tests/fixed heap and add safe streaming/upstream limits if necessary.

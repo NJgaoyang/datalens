@@ -21,3 +21,6 @@ Using Node 22.23.4 from the existing local runtime:
 New automated coverage includes scoped/encoded search, export creation binding and idempotent requests, separate grant routes/version payloads, exact CSV bytes, permission rejection, login cleanup, invalid MIME response, payload bounds, aborted download, and safe audit pagination. Browser cases cover metadata-only lists, hidden results, independent grants, export/download, revoked downloads, truncation, canceled polling, grant management, admin navigation and stale search responses.
 
 Backend authorization, CSV sanitization, real HTTP integration and exact-commit CI remain separate gates. Mock API/unit passes do not establish real browser or StarRocks correctness. No remote publication was performed by this worker.
+
+## Final CI acceptance
+Exact head `67089355b4be6a8dfb3becf1c77347ad9496b14b`: https://github.com/NJgaoyang/datalens/actions/runs/41659688862 passed clean install, 69 unit tests, typecheck/build and all 83 Chromium cases. Initial run surfaced two unchanged legacy tests expecting `/` instead of the new `/workspace` denial destination; assertions corrected. Existing model navigation test now waits for `/subjects` before Back, eliminating its observed race. Final run had no failed/flaky browser cases.

@@ -77,12 +77,13 @@ public class QueryService {
     }
     @org.springframework.core.annotation.Order(0)
     @EventListener(ApplicationReadyEvent.class) public void start() throws SQLException {lease.acquire();store.recover();ready=true;}
-    public void requireAvailable(){if(!ready||!lease.valid())throw new DomainException(503,"QUERY_EXECUTOR_UNAVAILABLE","查询执行器暂不可用");}
+    public boolean available(){return ready && lease.valid();}
+    public void requireAvailable(){if(!available())throw new DomainException(503,"QUERY_EXECUTOR_UNAVAILABLE","查询执行器暂不可用");}
     public TaskView submit(Submit input,String requestId) {
         return submitForPurpose(input,null,requestId);
     }
     public TaskView submitForPurpose(Submit input,QueryContext context,String requestId) {
-        if(!ready || !lease.valid())throw new DomainException(503,"QUERY_EXECUTOR_UNAVAILABLE","查询执行器暂不可用");
+        if(!available())throw new DomainException(503,"QUERY_EXECUTOR_UNAVAILABLE","查询执行器暂不可用");
         CurrentActor actor=permissions.current();var executionActor=sourceActor(actor,context,input);var scope=sources.authorize(executionActor,input.subjectId());
         input.parameters().forEach(QueryParameters::value);
         var validated=SafeSql.validate(input.sql(),scope.columns(),input.parameters());

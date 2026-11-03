@@ -14,3 +14,6 @@
 .DS_Store
 deploy/data/
 local-secrets/
+
+**/__pycache__/
+*.pyc

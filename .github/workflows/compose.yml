@@ -2,9 +2,7 @@ name: Disposable Docker acceptance
 on:
   push:
     branches: [main, dev20261103, fix/m00-frontend-lock]
-    paths: ['server/**', 'web/**', 'deploy/**', '.dockerignore', '.github/scripts/compose-smoke.sh', '.github/workflows/compose.yml']
   pull_request:
-    paths: ['server/**', 'web/**', 'deploy/**', '.dockerignore', '.github/scripts/compose-smoke.sh', '.github/workflows/compose.yml']
   workflow_dispatch:
 permissions:
   contents: read

@@ -26,6 +26,16 @@ class QueryServiceTest {
     QueryStore.Stored task(long owner,long version,String status) {
         return new QueryStore.Stored(new TaskView("task","subject",status,null,Instant.now(),null,null,false),owner,version,"source",1,"hash",null,"SELECT amount FROM orders","[]");
     }
+    @Test void availabilityFailsClosedBeforeStartAfterLeaseLossAndAfterStop() {
+        var cold=new QueryService(store,sources,permissions,lease,JsonMapper.builder().build());
+        try {assertThat(cold.available()).isFalse();} finally {cold.stop();}
+        assertThat(service.available()).isTrue();
+        when(lease.valid()).thenReturn(false);
+        assertThat(service.available()).isFalse();
+        assertThatThrownBy(service::requireAvailable).isInstanceOf(com.datalens.common.web.DomainException.class);
+        when(lease.valid()).thenReturn(true);
+        service.stop();assertThat(service.available()).isFalse();
+    }
     @Test void otherUserCannotReadOrCancelTask() {
         when(store.get("task")).thenReturn(task(8,1,"RUNNING"));
         assertThatThrownBy(()->service.get("task")).isInstanceOf(AccessDeniedException.class);

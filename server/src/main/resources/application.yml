@@ -60,7 +60,7 @@ management:
         liveness:
           include: livenessState
         readiness:
-          include: readinessState,db,redis
+          include: readinessState,db,redis,queryExecutor
 logging:
   pattern:
     level: '%5p [requestId=%X{requestId:-}]'

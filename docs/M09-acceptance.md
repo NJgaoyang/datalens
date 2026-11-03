@@ -22,3 +22,14 @@ CSV is a bounded export of an already-completed refresh, not an unbounded full-d
 Review identified and closed original-query source-version reauthorization on export delivery, ordinary chart metadata filtering after policy revocation, final detail policy recheck, and duplicate queued-request coalescing. Regression tests cover these fixes. Two new MySQL ExportStoreIT cases and two HTTP/session/CSRF ChartSharingIT export cases compile but were not run locally; exact-commit remote CI is required.
 
 Frontend: 69 unit tests, Vue typecheck and production build passed. Ten new workbench/export browser regressions added (83 total browser cases); local Chromium is unavailable and no browser pass is claimed before CI.
+
+## Exact-commit CI acceptance (2026-11-03)
+
+Accepted working-branch head: `67089355b4be6a8dfb3becf1c77347ad9496b14b` on `fix/m00-frontend-lock`.
+- Backend https://github.com/NJgaoyang/datalens/actions/runs/41659689414: full pinned Maven verify/package, **356 unit + 91 real MySQL/Redis integration tests**, zero failures/errors/skips. Both new HTTP export lifecycle cases and both durable store cases passed.
+- Frontend https://github.com/NJgaoyang/datalens/actions/runs/41659688862: clean install, **69 unit + 83 Chromium browser tests**, typecheck/build; no failed/flaky browser cases in the final run.
+- Docker https://github.com/NJgaoyang/datalens/actions/runs/41659688756: cold start with ten migrations, security headers and API checks, same-volume restart/data preservation, Redis failure/recovery.
+
+Initial head `d39e7e727dd46f780f09f29e8f31ca8fff42cb71` exposed missing explicit default-deny security route admissions, outdated settings/module-count assertions and two legacy root-redirect expectations. Corrective head adds precise authenticated/admin export/audit matchers, updates stage/count tests and stabilizes navigation before browser Back. Business/source/recipient authorization remains enforced by application services. Independent security review findings were fixed before initial publication.
+
+The full CI results supersede the local Maven/MySQL/browser environmental limitations above. Analytics JDBC remains a deterministic mock; no real StarRocks/provider/business dataset acceptance or production deployment is claimed. No merge/deployment occurred. This evidence update is local for inclusion in M10 publication.

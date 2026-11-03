@@ -5,7 +5,7 @@
 - 系统元数据：MySQL 8.4；身份会话：Redis
 - 分析数据源：外接 StarRocks，只读账号，显式元数据与主题权限范围
 - 后端：Java 21 / Spring Boot；前端：Vue 3 / TypeScript / ECharts
-- 当前代码阶段：M09 工作台、搜索与受控导出；本地单元验证通过，远端 CI/集成验证待完成。M07–M08 后端、前端、浏览器与容器 CI 验收通过。真实提供商、真实业务题集和 StarRocks 验收仍待完成；M09 远端验收待完成；M10 尚未交付。
+- 当前代码阶段：M00–M09 业务开发与 M10 集成验收/生产准备。生产验收仍被真实 StarRocks、模型/业务题集、约定性能、安全与恢复演练阻断；不得直接上线。
 
 启动和运行配置见 [deploy/README.md](deploy/README.md)，接口见 [contracts/models.md](contracts/models.md)，验收边界见 [docs/M07-acceptance.md](docs/M07-acceptance.md)。无 StarRocks、无模型密钥时支持零数据源启动。
 
@@ -16,3 +16,5 @@
 M08 本地范围和验证边界见 [docs/M08-acceptance.md](docs/M08-acceptance.md)，接口见 [contracts/conversations.md](contracts/conversations.md)。
 
 M09 范围与验证边界见 [docs/M09-acceptance.md](docs/M09-acceptance.md)，接口见 [contracts/exports.md](contracts/exports.md)。
+
+M10 验收矩阵与证据见 [docs/M10-acceptance.md](docs/M10-acceptance.md)，生产准备与恢复流程见 [deploy/production-readiness.md](deploy/production-readiness.md)。
