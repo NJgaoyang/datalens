@@ -92,6 +92,14 @@ class QueryStoreIT {
         assertThat(store.get(queued).view().status()).isEqualTo("FAILED");
         assertThat(store.get(queued).view().errorCode()).isEqualTo("SOURCE_QUERY_QUARANTINED");
     }
+    @Test void queuedCancellationIsConfirmedWithoutQuarantiningSource() {
+        String id=create("cancel-before-dispatch").view().id();
+        assertThat(store.cancelQueued(id)).isTrue();
+        assertThat(store.get(id).view().status()).isEqualTo("CANCELLED");
+        assertThat(store.start(id)).isFalse();
+        assertThat(create("after-queued-cancel").view().status()).isEqualTo("QUEUED");
+        assertThat(count("SELECT COUNT(*) FROM sys_audit_event WHERE resource_id=? AND action='QUERY_FINISH'",id)).isEqualTo(1);
+    }
     @Test void cancelledTaskCannotRaceBackToSuccess() {
         String id=create("cancel-race-key").view().id();assertThat(store.start(id)).isTrue();
         assertThat(store.cancelling(id)).isTrue();

@@ -61,6 +61,13 @@ public class QueryStore {
         }
         return db.update("UPDATE query_task SET status='RUNNING' WHERE id=? AND status='QUEUED'",id)==1;
     }));}
+    public boolean cancelQueued(String id) {
+        return Boolean.TRUE.equals(tx.execute(status->{
+            db.queryForObject("SELECT setting_value FROM sys_platform_setting WHERE setting_key='query.lock' FOR UPDATE",String.class);
+            if(!"QUEUED".equals(get(id).view().status()))return false;
+            finish(id,"CANCELLED",null,0,null,false);return true;
+        }));
+    }
     public boolean cancelling(String id){return db.update("UPDATE query_task SET status='CANCELLING' WHERE id=? AND status IN ('QUEUED','RUNNING')",id)==1;}
     public void finish(String id,String state,String error,long elapsed,String result,boolean truncated) {
         tx.executeWithoutResult(txStatus->{

@@ -87,7 +87,11 @@ public class QueryService {
         authorized(id);return result;
     }
     public TaskView cancel(String id) {
-        var task=authorized(id);
+        authorized(id);
+        if(store.cancelQueued(id)) {
+            var queued=running.get(id);if(queued!=null)queued.request("CANCELLED");
+            return get(id);
+        }
         if(store.cancelling(id)) {
             var control=running.get(id);
             if(control!=null)requestCancellation(id,control,"CANCELLED");

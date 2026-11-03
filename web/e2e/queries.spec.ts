@@ -13,7 +13,7 @@ async function setup(page: Page) {
     if (path.endsWith('/result')) return route.fulfill({ json: envelope({ columns: [{ name: 'total', jdbcType: 'DECIMAL' }], rows: [['9007199254740993.01']], rowLimit: 1000, truncated: true }) });
     return route.fulfill({ status: 404, json: envelope(null, 'NOT_FOUND') });
   });
-  await page.goto('/queries'); await page.getByLabel('查询业务主题').click(); await page.getByRole('option', { name: '销售分析' }).click();
+  await page.goto('/queries'); await page.getByRole('combobox', { name: '查询业务主题', exact: true }).click(); await page.getByRole('option', { name: '销售分析' }).click();
   await expect(page.getByText('orders.total', { exact: true })).toBeVisible();
   await page.getByLabel('只读 SQL', { exact: true }).fill('SELECT orders.total FROM orders');
 }
