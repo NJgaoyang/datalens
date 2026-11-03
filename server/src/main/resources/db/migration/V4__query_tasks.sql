@@ -1,0 +1,28 @@
+CREATE TABLE query_task (
+ id VARCHAR(36) PRIMARY KEY,
+ actor_id BIGINT NOT NULL,
+ auth_version BIGINT NOT NULL,
+ subject_id VARCHAR(36) NOT NULL,
+ source_id VARCHAR(36) NOT NULL,
+ source_version BIGINT NOT NULL,
+ idempotency_key VARCHAR(64) COLLATE utf8mb4_bin NOT NULL,
+ request_hash CHAR(64) NOT NULL,
+ query_version CHAR(64) NOT NULL,
+ sql_text TEXT NOT NULL,
+ parameters_json TEXT NOT NULL,
+ status VARCHAR(32) NOT NULL,
+ error_code VARCHAR(48) NULL,
+ created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+ finished_at TIMESTAMP(6) NULL,
+ duration_ms BIGINT NULL,
+ result_json MEDIUMTEXT NULL,
+ truncated BOOLEAN NOT NULL DEFAULT FALSE,
+ request_id VARCHAR(36) NOT NULL,
+ UNIQUE KEY uq_query_idempotency(actor_id,idempotency_key),
+ INDEX ix_query_admission(actor_id,status),
+ INDEX ix_query_source(source_id,status),
+ FOREIGN KEY(actor_id) REFERENCES sys_user(id),
+ FOREIGN KEY(subject_id) REFERENCES ds_subject(id),
+ FOREIGN KEY(source_id) REFERENCES ds_source(id)
+);
+INSERT INTO sys_platform_setting(setting_key,setting_value) VALUES('query.lock','1');

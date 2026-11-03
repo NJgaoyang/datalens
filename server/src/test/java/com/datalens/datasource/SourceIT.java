@@ -16,6 +16,7 @@ import static org.mockito.Mockito.*;
 import static com.datalens.datasource.SourceModels.*;
 
 /** Real HTTP/security/MySQL/Redis; analysis connection/metadata are explicitly simulated, NOT StarRocks acceptance. */
+@org.springframework.test.annotation.DirtiesContext(classMode=org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_CLASS)
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties={
     "server.servlet.session.cookie.secure=false","server.address=127.0.0.1",
     "DATALENS_SOURCE_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
@@ -63,6 +64,32 @@ class SourceIT {
         var in=new SubjectInput("Sales",source,List.of(new Field("orders","id"),new Field("orders","secret")),List.of(new Field("orders","secret")),List.of(userId),"NONE");
         var response=admin.send("POST","/api/v1/admin/subjects",in,true);assertThat(response.statusCode()).isEqualTo(200);
         return json.readTree(response.body()).path("data").path("id").asString();
+    }
+    @Test void querySessionIsolationParameterBindingAndResultRevocation() throws Exception {
+        String id=create();harvest(id);String subjectId=subject(id);
+        Connection connection=mock(Connection.class);Statement setup=mock(Statement.class);
+        PreparedStatement statement=mock(PreparedStatement.class);ResultSet rows=mock(ResultSet.class);ResultSetMetaData metadata=mock(ResultSetMetaData.class);
+        when(pools.open(any())).thenReturn(connection);when(connection.createStatement()).thenReturn(setup);
+        when(connection.prepareStatement(anyString())).thenReturn(statement);when(statement.executeQuery()).thenReturn(rows);
+        when(rows.getMetaData()).thenReturn(metadata);when(metadata.getColumnCount()).thenReturn(1);
+        when(metadata.getColumnLabel(1)).thenReturn("id");when(metadata.getColumnTypeName(1)).thenReturn("BIGINT");
+        when(rows.next()).thenReturn(true,false);when(rows.getString(1)).thenReturn("9007199254740993");
+        var body=Map.of("subjectId",subjectId,"sql","SELECT id FROM orders WHERE id > ?","parameters",List.of(Map.of("type","INTEGER","value","2")),"idempotencyKey",UUID.randomUUID().toString());
+        assertThat(user.send("POST","/api/v1/query-tasks",body,false).statusCode()).isEqualTo(403);
+        var submitted=user.send("POST","/api/v1/query-tasks",body,true);assertThat(submitted.statusCode()).isEqualTo(200);
+        String task=json.readTree(submitted.body()).path("data").path("id").asString();
+        String status="";
+        for(int i=0;i<100;i++) {
+            status=json.readTree(user.send("GET","/api/v1/query-tasks/"+task,null,false).body()).path("data").path("status").asString();
+            if(!Set.of("QUEUED","RUNNING").contains(status))break;Thread.sleep(50);
+        }
+        assertThat(status).isEqualTo("SUCCEEDED");
+        assertThat(user.send("GET","/api/v1/query-tasks/"+task+"/result",null,false).body()).contains("9007199254740993");
+        assertThat(admin.send("GET","/api/v1/query-tasks/"+task+"/result",null,false).statusCode()).isEqualTo(403);
+        assertThat(user.send("POST","/api/v1/query-tasks",body,true).body()).contains(task);
+        verify(statement,times(1)).executeQuery();verify(statement).setObject(1,2L);verify(setup).execute("SET query_timeout = 10");
+        db.update("DELETE FROM ds_subject_user WHERE subject_id=?",subjectId);
+        assertThat(user.send("GET","/api/v1/query-tasks/"+task+"/result",null,false).statusCode()).isEqualTo(403);
     }
     @Test void administrationRequiresRoleAndCsrfAndEndpointAllowlist() throws Exception {
         var body=input("10.20.30.40","test-secret",true);

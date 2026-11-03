@@ -11,6 +11,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import tools.jackson.databind.*;
 import static org.assertj.core.api.Assertions.*;
 /** Real HTTP cookies + Spring Security + Redis sessions + MySQL; disposable CI services only. */
+@org.springframework.test.annotation.DirtiesContext(classMode=org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_CLASS)
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,
  properties={"server.servlet.session.cookie.secure=false", "server.address=127.0.0.1"})
 class IdentityIT {

@@ -1,0 +1,29 @@
+# M03 safe query engine: implementation and acceptance status
+
+Scope: M02-dependent controlled queries, durable tasks/results, read-only AST compilation, typed binding, limits, cancellation attempts, audit and Vue workbench. Non-goals: charts, sharing, AI, production deployment. No fabricated query results.
+
+## Delivered
+
+V4 adds query_task and the serialized admission lock. MySQL stores actual actor/auth revision, subject/source revision, idempotency key/hash, query version hash, definition/parameters, lifecycle/timing/failure and bounded result. Definitions/results are sensitive application data: protect MySQL backups and access; no SQL/parameters/driver errors enter normal logs or audit payloads. Retention administration remains a production-readiness task, not an invisible deletion job.
+
+QuerySourceAccess is the datasource module's narrow capability interface. Authentication, subject membership, source revision and effective fields are rechecked at submit, queued execution, persistence and delivery. Compiler emits approved AST syntax; unknown nodes/properties, external access, writes and multi-statements fail closed. Credentials remain inside the datasource module.
+
+Bounded in-process executor and transactional database admission serialize duplicate requests/concurrency. An exclusive MySQL advisory lease deliberately restricts this M03 deployment to one active application instance per metadata database. Do not run multiple replicas. Startup recovers QUEUED as FAILED and RUNNING/CANCELLING as RECOVERY_UNCONFIRMED; SQL is never silently replayed. Losing the lease prevents new dispatch. Source quarantine is also checked atomically at queued-task start.
+
+Cancellation sends a real JDBC Statement.cancel and attempts Connection.abort after3 seconds when still active. Cancellation after dispatch is explicitly CANCEL_UNCONFIRMED, not a claim that StarRocks stopped. Unknown database termination quarantines the source. Cancellation wins over success persistence; late completions cannot overwrite terminal states. Only work never dispatched to StarRocks is confirmed CANCELLED.
+
+Operational quarantine recovery is intentionally manual and requires a reviewed maintenance change: inspect/terminate the matching remote work with the database operator, verify quiescence, retain original task/audit evidence and only then approve a narrow recovery migration/API enhancement. Do not clear quarantine by silently editing task states or deleting audit records. No automatic reset/retry endpoint is exposed.
+
+## Verification
+
+- Local Java21 compile: all main and test sources pass against current cached runtime dependencies plus pinned JSQLParser5.3.
+- Local JUnit launcher:123 unit tests pass,0 skipped/failed, including88 SQL compiler cases,11 query engine/result/binding/isolation tests and existing regression suites. An initial cached Spring-test version mismatch was corrected to7.0.10; an explicit cached ByteBuddy agent was needed for this container's attach restriction. This is not a complete Maven integration run.
+- Vue:23 unit tests pass; vue-tsc and production build pass. Eight new Playwright API-contract cases authored; Chromium launch is blocked by this container's socket restrictions before assertions, so browser execution is delegated to CI.
+- MySQL integration:9 QueryStoreIT tests cover transactional concurrent idempotency, per-user/source/global admission, quarantine of queued jobs, lifecycle CAS/audit and restart recovery. SourceIT adds real HTTP/session/CSRF plus simulated JDBC query/binding/precision/revocation. Auth integration contexts close their executor lease after each test class. Execution pending CI, not represented as local pass.
+- Compose smoke checks V4 migration and updated M03 system identity; preserves same-volume restart check. CI status must be verified at the pushed SHA.
+
+## Outstanding real acceptance gates
+
+The identified cluster is StarRocks3.3.22. M02's documented native TLS compatibility gap still blocks real connectivity. No plaintext fallback, credential request in chat, deployment or production write is performed.
+
+Before accepting M03 for use: validate actual driver/cluster dialect and TLS gateway/backport; prove server SET query_timeout, JDBC limits and DB-side cancellation with an authorized long-running read; inspect remote query inventory after timeout, cancellation, socket loss and app restart; benchmark large cells/intermediate results and enforce server resource groups/memory budgets. The2MB result cap does not prove a hard JVM memory bound because JDBC may buffer cells. Mock JDBC and CI metadata-database tests do not close these gates. M03 implementation is available for review; real-cluster acceptance remains pending.

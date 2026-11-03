@@ -5,9 +5,9 @@
 - 系统元数据：MySQL 8.4；身份会话：Redis
 - 分析数据源：外接 StarRocks，只读账号，显式元数据与主题权限范围
 - 后端：Java 21 / Spring Boot；前端：Vue 3 / TypeScript / ECharts
-- 当前代码阶段：M02 数据源与元数据。M03–M10 尚未交付。
+- 当前代码阶段：M03 安全查询执行引擎，真实 StarRocks 验收仍待完成。M04–M10 尚未交付。
 
-启动和运行配置见 [deploy/README.md](deploy/README.md)，接口见 [contracts/datasources.md](contracts/datasources.md)，验收边界见 [docs/M02-acceptance.md](docs/M02-acceptance.md)。无 StarRocks、无模型密钥时支持零数据源启动。
+启动和运行配置见 [deploy/README.md](deploy/README.md)，接口见 [contracts/queries.md](contracts/queries.md)，验收边界见 [docs/M03-acceptance.md](docs/M03-acceptance.md)。无 StarRocks、无模型密钥时支持零数据源启动。
 
 真实 StarRocks 集群尚未提供：模拟 JDBC/元数据测试不等于真实集群接入验收。正式接入前必须验证目标版本、TLS、只读权限和元数据映射。
 

@@ -7,6 +7,7 @@ import UsersView from './views/UsersView.vue';
 import FoundationView from './views/FoundationView.vue';
 import SourcesView from './views/SourcesView.vue';
 import SubjectsView from './views/SubjectsView.vue';
+import QueryView from './views/QueryView.vue';
 import PlannedModuleView from './views/PlannedModuleView.vue';
 
 export const router = createRouter({
@@ -20,6 +21,7 @@ export const router = createRouter({
     { path: '/charts/shared', component: PlannedModuleView, meta: { title: '共享给我', stage: 'M05', description: '仅显示明确授权给当前用户的图表。链接和图表编号不构成访问权限。' } },
     { path: '/charts/public', component: PlannedModuleView, meta: { title: '全员共享', stage: 'M05', description: '全员指本系统的有效登录用户，不提供互联网匿名访问。' } },
     { path: '/sources', component: SourcesView, meta: { title: '数据源管理', admin: true } },
+    { path: '/queries', component: QueryView, meta: { title: '安全 SQL 查询' } },
     { path: '/subjects', component: SubjectsView, meta: { title: '业务主题' } },
     { path: '/settings', component: UsersView, meta: { title: '用户管理', admin: true } },
     { path: '/:pathMatch(.*)*', redirect: '/' },

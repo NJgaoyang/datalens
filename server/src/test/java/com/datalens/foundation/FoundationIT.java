@@ -19,6 +19,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /** Requires disposable MySQL 8.4 and Redis. Run with -Pintegration, never against production. */
+@org.springframework.test.annotation.DirtiesContext(classMode=org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_CLASS)
 @SpringBootTest
 class FoundationIT {
     @Autowired WebApplicationContext context;
@@ -36,9 +37,9 @@ class FoundationIT {
     @Test void realMySqlMigrationAndMapperWorkWithoutModelOrStarRocks() throws Exception {
         mvc.perform(get("/api/v1/system/info")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("DataLens"))
-                .andExpect(jsonPath("$.data.stage").value("M02"))
-                .andExpect(jsonPath("$.data.enabledModules.length()").value(3));
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sys_platform_setting", Integer.class)).isEqualTo(2);
+                .andExpect(jsonPath("$.data.stage").value("M03"))
+                .andExpect(jsonPath("$.data.enabledModules.length()").value(4));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sys_platform_setting", Integer.class)).isEqualTo(3);
     }
 
     @Test void migrationIsRepeatableWithoutReseeding() {
