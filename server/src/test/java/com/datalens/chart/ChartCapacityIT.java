@@ -12,36 +12,42 @@ import com.datalens.common.web.DomainException;
 import static org.assertj.core.api.Assertions.*;
 
 /** Disposable real MySQL admission bounds. No history is deleted by application quota handling. */
-@SpringBootTest
+@SpringBootTest(properties="datalens.capacity.chart-previews-per-user=1")
 @DirtiesContext(classMode=DirtiesContext.ClassMode.AFTER_CLASS)
 class ChartCapacityIT {
-    @Autowired ChartStore store;
+    ChartStore store;
+    @Autowired ChartStore configuredStore;
+    @Autowired org.springframework.transaction.PlatformTransactionManager manager;
+    @Autowired com.datalens.audit.AuditService audit;
     @Autowired JdbcTemplate db;
     CurrentActor actor;
-    ChartCapacity savedCapacity;
     final List<String> charts = new ArrayList<>();
     @BeforeEach void seed() {
-        savedCapacity=store.capacity;
+        store=new ChartStore(db,manager,audit,ChartCapacity.defaults());
         String name="cap_"+UUID.randomUUID().toString();
         db.update("INSERT INTO sys_user(username,password_hash,role) VALUES(?,'disabled-fixture','SUPER_ADMIN')",name);
         actor=new CurrentActor(db.queryForObject("SELECT id FROM sys_user WHERE username=?",Long.class,name),name,"SUPER_ADMIN",1);
     }
     @AfterEach void cleanup() {
-        store.capacity=savedCapacity;
         db.update("DELETE FROM chart_run WHERE actor_id=?",actor.id());
         db.update("DELETE FROM chart_preview WHERE actor_id=?",actor.id());
-        for(String id:charts){db.update("DELETE FROM chart_management_event WHERE chart_id=?",id);db.update("DELETE FROM chart_share WHERE chart_id=?",id);db.update("DELETE FROM chart_revision WHERE chart_id=?",id);db.update("DELETE FROM chart WHERE id=?",id);}
+        for(String id:db.queryForList("SELECT id FROM chart WHERE owner_id=?",String.class,actor.id())){db.update("DELETE FROM chart_management_event WHERE chart_id=?",id);db.update("DELETE FROM chart_share WHERE chart_id=?",id);db.update("DELETE FROM chart_revision WHERE chart_id=?",id);db.update("DELETE FROM chart WHERE id=?",id);}
         db.update("DELETE FROM sys_audit_event WHERE actor_id=?",actor.id());
         db.update("DELETE FROM sys_user WHERE id=?",actor.id());
     }
     void limit(int assets,int previews,int runs,int revisions) {
         // Tests own fresh rows; global limits deliberately retain room for unrelated integration fixtures.
-        store.capacity=new ChartCapacity(10000,assets,10000,previews,10000,runs,20000,revisions);
+        store=new ChartStore(db,manager,audit,new ChartCapacity(10000,assets,10000,previews,10000,runs,20000,revisions));
     }
     ChartStore.PreviewRow preview(String key){return store.createPreview(actor,key,"fixture-definition","[]");}
     ChartModels.Summary chart(String key){var p=preview(key);var c=store.save(actor,p,key,"fixture-request");charts.add(c.id());return c;}
     void capacityDenied(org.assertj.core.api.ThrowableAssert.ThrowingCallable action) {
         assertThatThrownBy(action).isInstanceOfSatisfying(DomainException.class,e->assertThat(e.code()).isEqualTo("CHART_STORAGE_CAPACITY"));
+    }
+    @Test void springConfigurationReachesTheProxiedStore() {
+        var first=configuredStore.createPreview(actor,"configured-one","fixture","[]");
+        capacityDenied(()->configuredStore.createPreview(actor,"configured-two","fixture","[]"));
+        assertThat(configuredStore.createPreview(actor,"configured-one","fixture","[]").id()).isEqualTo(first.id());
     }
     @Test void replayAndExistingDataSurvivePreviewAndRunLimits() {
         limit(10,1,1,10);
@@ -81,7 +87,7 @@ class ChartCapacityIT {
     @Test void fullGlobalRevisionCapacityCannotPartiallySaveAnAsset() {
         limit(10,10,10,10);chart("first");var p=preview("second");
         int existing=db.queryForObject("SELECT COUNT(*) FROM chart_revision",Integer.class);
-        store.capacity=new ChartCapacity(10000,10,10000,10,10000,10,existing,1);
+        store=new ChartStore(db,manager,audit,new ChartCapacity(10000,10,10000,10,10000,10,existing,1));
         capacityDenied(()->store.save(actor,p,"second","fixture"));
         assertThat(store.preview(p.id()).savedChartId()).isNull();
         assertThat(db.queryForObject("SELECT COUNT(*) FROM chart WHERE owner_id=?",Long.class,actor.id())).isEqualTo(1);

@@ -16,9 +16,11 @@ import static com.datalens.chart.ChartModels.*;
 public class ChartStore {
     public record PreviewRow(String id,long actorId,long authVersion,String definition,String params,String taskId,String savedChartId) {}
     public record Run(String id,String chartId,String revisionId,long actorId,String params,String taskId) {}
-    @org.springframework.beans.factory.annotation.Autowired ChartCapacity capacity = ChartCapacity.defaults();
+    private final ChartCapacity capacity;
     private final JdbcTemplate db;private final TransactionTemplate tx;private final AuditService audit;
-    public ChartStore(JdbcTemplate db,PlatformTransactionManager manager,AuditService audit){this.db=db;tx=new TransactionTemplate(manager);tx.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_READ_COMMITTED);this.audit=audit;}
+    public ChartStore(JdbcTemplate db,PlatformTransactionManager manager,AuditService audit){this(db,manager,audit,ChartCapacity.defaults());}
+    @org.springframework.beans.factory.annotation.Autowired
+    public ChartStore(JdbcTemplate db,PlatformTransactionManager manager,AuditService audit,ChartCapacity capacity){this.db=db;tx=new TransactionTemplate(manager);tx.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_READ_COMMITTED);this.audit=audit;this.capacity=capacity;}
     private boolean full(String table,String ownerColumn,Object owner,int limit) {
         // Every caller supplies a module-owned constant identifier, never a request value.
         String filter=ownerColumn==null?"":" WHERE "+ownerColumn+"=?";
