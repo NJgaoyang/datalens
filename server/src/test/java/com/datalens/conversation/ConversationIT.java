@@ -388,6 +388,9 @@ class ConversationIT {
         db.update("UPDATE sys_user SET enabled=FALSE WHERE id=?", owner.id);
         owner.status(401, "GET", ROOT, null);
         owner.status(401, "GET", ROOT + "/" + id, null);
+        // Invalidating the authenticated session also invalidates its CSRF token.
+        owner.status(403, "POST", turns(id), new Send("Sales?", 0, "turn-key"));
+        owner.token();
         owner.status(401, "POST", turns(id), new Send("Sales?", 0, "turn-key"));
         verifyNoInteractions(model);
     }
