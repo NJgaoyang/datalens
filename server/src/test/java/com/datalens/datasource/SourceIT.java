@@ -114,4 +114,40 @@ class SourceIT {
         db.update("UPDATE ds_source SET harvest_started_at=CURRENT_TIMESTAMP - INTERVAL 3 MINUTE WHERE id=?",id);
         harvest(id);
     }
+    @Test void revokedAdminCannotPublishHarvestResults() throws Exception {
+        String id=create();harvest(id);
+        var entered=new java.util.concurrent.CountDownLatch(1);var release=new java.util.concurrent.CountDownLatch(1);
+        when(collector.collect(any(),any())).thenAnswer(call->{
+            entered.countDown();if(!release.await(10,java.util.concurrent.TimeUnit.SECONDS)) throw new SQLException("timeout");
+            return List.of(new ColumnView(id,"orders","new_column","BIGINT",1,false));
+        });
+        try(var executor=java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var pending=executor.submit(()->admin.send("POST","/api/v1/admin/sources/"+id+"/harvest",Map.of(),true));
+            try {
+                assertThat(entered.await(10,java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                db.update("UPDATE sys_user SET enabled=FALSE,auth_version=auth_version+1 WHERE username=?",adminName);
+            } finally {release.countDown();}
+            assertThat(pending.get(10,java.util.concurrent.TimeUnit.SECONDS).statusCode()).isEqualTo(401);
+        }
+        assertThat(db.queryForList("SELECT column_name FROM ds_column WHERE source_id=? ORDER BY column_name",String.class,id)).containsExactly("id","secret");
+    }
+    @Test void staleGenerationCannotPublishAfterConfigurationChange() throws Exception {
+        String id=create();harvest(id);
+        var entered=new java.util.concurrent.CountDownLatch(1);var release=new java.util.concurrent.CountDownLatch(1);
+        when(collector.collect(any(),any())).thenAnswer(call->{
+            entered.countDown();if(!release.await(10,java.util.concurrent.TimeUnit.SECONDS)) throw new SQLException("timeout");
+            return List.of(new ColumnView(id,"orders","new_column","BIGINT",1,false));
+        });
+        try(var executor=java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var pending=executor.submit(()->admin.send("POST","/api/v1/admin/sources/"+id+"/harvest",Map.of(),true));
+            try {
+                assertThat(entered.await(10,java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                db.update("UPDATE ds_source SET version=version+1,harvest_status='NEVER' WHERE id=?",id);
+            } finally {release.countDown();}
+            assertThat(pending.get(10,java.util.concurrent.TimeUnit.SECONDS).statusCode()).isEqualTo(409);
+        }
+        assertThat(db.queryForObject("SELECT harvest_status FROM ds_source WHERE id=?",String.class,id)).isEqualTo("NEVER");
+        assertThat(db.queryForList("SELECT column_name FROM ds_column WHERE source_id=? ORDER BY column_name",String.class,id)).containsExactly("id","secret");
+    }
+
 }
