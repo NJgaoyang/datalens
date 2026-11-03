@@ -136,3 +136,22 @@ test('sharing policy denial clears management without inventing a successful cha
   await page.goto('/charts/c1'); await page.getByRole('button',{name:'管理共享'}).click(); await page.getByLabel('共享范围',{exact:true}).selectOption('ALL'); await page.getByRole('button',{name:'保存共享范围'}).click();
   await expect(page.getByText(/业务主题不允许此共享范围/)).toBeVisible(); await expect(page.getByRole('heading',{name:'共享与管理'})).toHaveCount(0); await expect(page.getByText('9007199254740993.0100',{exact:true})).toHaveCount(0);
 });
+test('editing a conversation chart preserves semantic provenance and LAST_MONTH rule', async ({ page }) => {
+  await setup(page);
+  const binding = { publicationVersion: 3, digest: 'reviewed-digest', scopeFingerprint: 'reviewed-scope', metricId: 'sales' };
+  const boundDefinition = { ...definition, parameters: [{ type: 'DATE', value: '2026-10-01' }, { type: 'DATE', value: '2026-11-01' }], timeRule: { kind: 'LAST_MONTH', days: null, timeZone: 'Asia/Shanghai', startIndex: 0, endIndex: 1 }, semanticBinding: binding };
+  await page.route('**/api/v1/charts/c1', route => route.fulfill({ json: envelope({ ...chart, definition: boundDefinition }) }));
+  let previews = 0;
+  await page.route('**/api/v1/charts/previews', route => {
+    previews++; const input = route.request().postDataJSON();
+    expect(input.definition.semanticBinding).toEqual(binding);
+    expect(input.definition.timeRule).toEqual(boundDefinition.timeRule);
+    return route.fulfill({ json: envelope({ id: 'p1', definition: input.definition, taskId: 't1' }) });
+  });
+  await page.goto('/charts/c1'); await expect(page.getByText('9007199254740993.0100', { exact: true })).toBeVisible();
+  await expect(page.getByText(/上一个完整自然月 · Asia\/Shanghai/)).toBeVisible();
+  await page.getByRole('button', { name: '编辑图表', exact: true }).click();
+  await expect(page.getByLabel('时间规则', { exact: true })).toHaveValue('LAST_MONTH');
+  await page.getByRole('button', { name: '执行预览' }).click();
+  await expect(page.getByRole('button', { name: '确认发布新版本' })).toBeVisible(); expect(previews).toBe(1);
+});

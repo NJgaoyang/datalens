@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.datalens.datasource.SourceModels.Field;
 import com.datalens.query.QueryModels.Parameter;
 
@@ -13,6 +14,10 @@ public final class SemanticModels {
         @NotBlank @Size(max=100) String name,@NotNull @Size(max=20) List<@NotBlank @Size(max=100) String> aliases,
         @NotNull @Valid Field physical,@NotBlank @Size(max=100) String type,@NotBlank @Size(max=50) String unit,
         @NotBlank @Pattern(regexp="PUBLIC|INTERNAL|SENSITIVE") String sensitivity) {}
+    /** Explicitly reviewed positions in immutable metric SQL, never inferred from question text. */
+    public record TimeParameters(@NotNull @Min(0) @Max(99) Integer startIndex,
+        @NotNull @Min(0) @Max(99) Integer endIndex,@NotBlank @Size(max=100) String timeZone,
+        @NotNull @Pattern(regexp="DATE|TIMESTAMP") String parameterType) {}
     public record Metric(@NotBlank @Pattern(regexp="[A-Za-z][A-Za-z0-9_-]{0,63}") String id,
         @NotBlank @Size(max=100) String name,@NotNull @Size(max=20) List<@NotBlank @Size(max=100) String> aliases,
         @NotBlank @Size(max=4000) String calculation,@NotBlank @Size(max=2000) String filters,
@@ -20,7 +25,14 @@ public final class SemanticModels {
         @NotBlank @Size(max=50) String unit,@NotBlank @Size(max=1000) String grain,
         @NotBlank @Size(max=1000) String nullHandling,@NotBlank @Size(max=1000) String timePolicy,
         @NotEmpty @Size(max=100) List<@NotBlank @Size(max=64) String> fieldIds,
-        @NotBlank @Size(max=16000) String sql,@NotNull @Size(max=100) List<@NotNull @Valid Parameter> parameters) {}
+        @NotBlank @Size(max=16000) String sql,@NotNull @Size(max=100) List<@NotNull @Valid Parameter> parameters,
+        @Valid @JsonInclude(JsonInclude.Include.NON_NULL) TimeParameters timeParameters) {
+        public Metric(String id,String name,List<String> aliases,String calculation,String filters,String timeFieldId,
+            String owner,String unit,String grain,String nullHandling,String timePolicy,List<String> fieldIds,
+            String sql,List<Parameter> parameters) {
+            this(id,name,aliases,calculation,filters,timeFieldId,owner,unit,grain,nullHandling,timePolicy,fieldIds,sql,parameters,null);
+        }
+    }
     public record Dimension(@NotBlank @Pattern(regexp="[A-Za-z][A-Za-z0-9_-]{0,63}") String id,
         @NotBlank @Size(max=100) String name,@NotNull @Size(max=20) List<@NotBlank @Size(max=100) String> aliases,
         @NotBlank @Size(max=64) String fieldId) {}

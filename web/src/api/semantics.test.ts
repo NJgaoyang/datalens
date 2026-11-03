@@ -11,6 +11,13 @@ it('requires bounded structured document and rejects invalid JSON, unknown top-l
   for(const value of ['[]','null','nope',JSON.stringify({...document,actorId:1}),JSON.stringify({...document,fields:new Array(201).fill({})}),JSON.stringify({...document,metrics:[null]})])expect(()=>parseSemanticDocument(value)).toThrow();
   expect(()=>parseSemanticDocument(' '.repeat(300001))).toThrow(/300,000/);
 });
+it('preserves explicit reviewed temporal parameter metadata without inferring missing authority',()=>{
+  const legacy={...document,metrics:[{id:'metric'}]};
+  expect(parseSemanticDocument(JSON.stringify(legacy)).metrics[0]?.timeParameters).toBeUndefined();
+  const timeParameters={startIndex:3,endIndex:1,timeZone:'America/New_York',parameterType:'TIMESTAMP'};
+  const reviewed={...document,metrics:[{id:'metric',timeParameters}]};
+  expect(parseSemanticDocument(JSON.stringify(reviewed)).metrics[0]?.timeParameters).toEqual(timeParameters);
+});
 it('encodes subject, preserves expected version, and separates explicit review, publication and withdrawal',async()=>{
   const mock=vi.fn().mockResolvedValueOnce(envelope({token:'csrf',headerName:'X-CSRF-TOKEN'})).mockResolvedValueOnce(envelope(draft)).mockResolvedValueOnce(envelope({...draft,reviewed:true})).mockResolvedValueOnce(envelope(publication)).mockResolvedValueOnce(envelope(draft));vi.stubGlobal('fetch',mock);
   await saveSemanticDraft('s/1',document,2);await reviewSemanticDraft('s/1',3);await publishSemantics('s/1',4);await withdrawSemantics('s/1',5);

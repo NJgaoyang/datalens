@@ -72,3 +72,6 @@ M00 不实现登录、用户管理、图表、查询执行或模型问数接口�
 - 刷新失败显示失败及上次成功时间；历史缓存不能冒充实时结果。
 - 模型、数据库凭据和会话令牌不得进入前端、提示词或普通日志。
 - 测试使用临时容器、脱敏夹具或专门授权测试数据库，不对生产 StarRocks 写入。
+
+## M08 local scope
+Owner-isolated durable conversation/history, trusted published metric selection, clarification, safe chart preview, no-data/truncation/query-time display, exact previous-month follow-up using human-reviewed parameter/timezone contracts, and explicit idempotent private chart save. First release uses polling, not streaming or reasoning traces. Unsupported modifications clarify instead of rewriting SQL. Saved semantic charts refresh without a provider but fail closed after semantic withdrawal/publication changes. Actual provider, StarRocks and independent business-correctness gates remain separate.

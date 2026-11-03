@@ -34,7 +34,7 @@ export async function refreshCsrf() {
   csrf = data;
 }
 
-export async function requestApi<T>(path: string, method = 'GET', data?: unknown, signal?: AbortSignal): Promise<ApiResponse<T>> {
+export async function requestApi<T>(path: string, method = 'GET', data?: unknown, signal?: AbortSignal, timeoutMs = 10_000): Promise<ApiResponse<T>> {
   if (!path.startsWith('/api/v1/') || path.includes('\\')) throw new ApiError('只允许同源业务接口', 'INVALID_PATH');
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (method !== 'GET') {
@@ -47,16 +47,18 @@ export async function requestApi<T>(path: string, method = 'GET', data?: unknown
     response = await fetch(path, {
       method, credentials: 'same-origin', headers,
       body: data === undefined ? undefined : JSON.stringify(data),
-      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
     });
   } catch (cause) {
     if (signal?.aborted) throw cause;
     throw new ApiError('无法连接后端服务，请检查服务是否启动', 'NETWORK_ERROR');
   }
+  if (signal?.aborted) throw signal.reason;
   if (response.status === 401 && path !== '/api/v1/auth/login' && path !== '/api/v1/auth/me') { clearCsrf(); onUnauthorized?.(); }
   let body: unknown;
   try { body = await response.json(); }
   catch { throw new ApiError('服务返回了无法识别的响应', 'INVALID_RESPONSE', response.headers.get('X-Request-ID') ?? undefined, response.status); }
+  if (signal?.aborted) throw signal.reason;
   if (!isEnvelope(body)) throw new ApiError('响应不符合接口契约', 'INVALID_RESPONSE', undefined, response.status);
   if (!response.ok || body.code !== 'OK') {
     if (response.status === 403) clearCsrf();

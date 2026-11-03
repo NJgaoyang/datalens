@@ -39,7 +39,8 @@ public final class SemanticRules {
             String timeType=fields.get(m.timeFieldId()).type().toUpperCase(Locale.ROOT);
             if(!timeType.matches("(DATE|DATETIME|TIMESTAMP)(\\([0-9]+\\))?"))throw invalid("指标时间字段必须是 DATE、DATETIME 或 TIMESTAMP 类型");
             var referenced=query(m.sql(),m.parameters(),scope);
-            if(!dependencies.equals(referenced))throw invalid("指标字段依赖必须与查询实际引用一致");
+            if(!dependencies.equals(referenced.fields()))throw invalid("指标字段依赖必须与查询实际引用一致");
+            SemanticTimeRules.validate(m,fields.get(m.timeFieldId()).physical(),referenced.sql());
         }
         for(var d:doc.dimensions()){unique(ids,d.id());dependencies(fields,List.of(d.fieldId()));}
         var edges=new HashSet<String>();
@@ -52,13 +53,17 @@ public final class SemanticRules {
         for(var e:doc.examples()){
             unique(ids,e.id());var dependencies=new HashSet<Field>();
             for(String id:e.metricIds()){var m=metrics.get(id);if(m==null)throw invalid("例题引用不存在的指标");dependencies.addAll(dependencies(fields,m.fieldIds()));}
-            if(!dependencies.containsAll(query(e.sql(),e.parameters(),scope)))throw invalid("例题引用了指标依赖之外的字段");
+            if(!dependencies.containsAll(query(e.sql(),e.parameters(),scope).fields()))throw invalid("例题引用了指标依赖之外的字段");
         }
         return warnings(doc);
     }
     private static void unique(Set<String> ids,String id){if(id==null||!ids.add(id))throw invalid("资产 ID 必须唯一");}
     private static Set<Field> dependencies(Map<String,BusinessField> fields,List<String> ids){var refs=new HashSet<Field>();for(String id:ids){var f=fields.get(id);if(f==null)throw invalid("资产引用不存在的字段");refs.add(f.physical());}return refs;}
-    private static Set<Field> query(String sql,List<Parameter> parameters,Scope scope) {
+    public static com.datalens.chart.ChartModels.TimeRule lastMonthRule(Metric metric) {
+        var time=SemanticTimeRules.contract(metric);
+        return new com.datalens.chart.ChartModels.TimeRule("LAST_MONTH",null,time.timeZone(),time.startIndex(),time.endIndex());
+    }
+    private static SafeSql.Validated query(String sql,List<Parameter> parameters,Scope scope) {
         for(var p:parameters)QueryParameters.value(p);
         var safe=SafeSql.validate(sql,scope.columns(),parameters);
         // Rejection only, after complete AST validation. Until a grain-aware SQL compiler exists,
@@ -66,7 +71,7 @@ public final class SemanticRules {
         String normalized=safe.sql().toUpperCase(Locale.ROOT);
         if(safe.fields().stream().map(Field::tableName).distinct().count()!=1 || normalized.contains(" JOIN ") || normalized.contains("WITH ") || normalized.indexOf("SELECT ")!=normalized.lastIndexOf("SELECT "))
             throw new DomainException(422,"SEMANTIC_JOIN_RISK","跨表、关联、子查询或 CTE 查询尚无粒度证明，不能发布为权威口径；请提供单表预聚合视图");
-        return safe.fields();
+        return safe;
     }
     public static List<String> warnings(Document doc) {
         var warnings=new ArrayList<String>();

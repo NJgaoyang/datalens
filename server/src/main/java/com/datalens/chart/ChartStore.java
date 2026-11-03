@@ -17,7 +17,7 @@ public class ChartStore {
     public record PreviewRow(String id,long actorId,long authVersion,String definition,String params,String taskId,String savedChartId) {}
     public record Run(String id,String chartId,String revisionId,long actorId,String params,String taskId) {}
     private final JdbcTemplate db;private final TransactionTemplate tx;private final AuditService audit;
-    public ChartStore(JdbcTemplate db,PlatformTransactionManager manager,AuditService audit){this.db=db;tx=new TransactionTemplate(manager);this.audit=audit;}
+    public ChartStore(JdbcTemplate db,PlatformTransactionManager manager,AuditService audit){this.db=db;tx=new TransactionTemplate(manager);tx.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_READ_COMMITTED);this.audit=audit;}
     void lock(){db.queryForObject("SELECT setting_value FROM sys_platform_setting WHERE setting_key='chart.lock' FOR UPDATE",String.class);}
     static DomainException missing(){return new DomainException(404,"CHART_NOT_FOUND","图表或预览不存在");}
     public Summary chart(String id) {
@@ -37,8 +37,9 @@ public class ChartStore {
         });
     }
     public void bindPreview(String id,String taskId){db.update("UPDATE chart_preview SET task_id=? WHERE id=? AND (task_id IS NULL OR task_id=?)",taskId,id,taskId);}
-    public Summary save(CurrentActor actor,PreviewRow preview,String name,String requestId) {
-        return tx.execute(s->{lock();var current=preview(preview.id());if(current.savedChartId()!=null){var chart=chart(current.savedChartId());if(chart.deleted()||(chart.ownerId()!=actor.id()&&!"SUPER_ADMIN".equals(actor.role())))throw new org.springframework.security.access.AccessDeniedException("Saved chart ownership changed");String savedName=db.queryForObject("SELECT saved_name FROM chart_preview WHERE id=?",String.class,current.id());if(!Objects.equals(savedName,name))throw conflict();return chart;}
+    public Summary save(CurrentActor actor,PreviewRow preview,String name,String requestId) {return save(actor,preview,name,requestId,()->{});}
+    public Summary save(CurrentActor actor,PreviewRow preview,String name,String requestId,Runnable validate) {
+        return tx.execute(s->{lock();validate.run();var current=preview(preview.id());if(current.savedChartId()!=null){var chart=chart(current.savedChartId());if(chart.deleted()||(chart.ownerId()!=actor.id()&&!"SUPER_ADMIN".equals(actor.role())))throw new org.springframework.security.access.AccessDeniedException("Saved chart ownership changed");String savedName=db.queryForObject("SELECT saved_name FROM chart_preview WHERE id=?",String.class,current.id());if(!Objects.equals(savedName,name))throw conflict();return chart;}
             String id=UUID.randomUUID().toString(),revision=UUID.randomUUID().toString();
             db.update("INSERT INTO chart(id,owner_id,name,revision_id) VALUES(?,?,?,?)",id,actor.id(),name,revision);
             db.update("INSERT INTO chart_revision(id,chart_id,version,definition_json,creator_id) VALUES(?,?,1,?,?)",revision,id,preview.definition(),actor.id());

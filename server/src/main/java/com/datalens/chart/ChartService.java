@@ -14,18 +14,19 @@ import static com.datalens.chart.ChartModels.*;
 
 @Service
 public class ChartService {
+    @org.springframework.beans.factory.annotation.Autowired private ChartSemanticAuthorization semantic;
     private final ChartStore store;private final QueryService queries;private final PermissionService permissions;private final ObjectMapper json;
     private final Clock clock;private final ChartPermissionService charts;
     @org.springframework.beans.factory.annotation.Autowired public ChartService(ChartStore store,QueryService queries,PermissionService permissions,ObjectMapper json,ChartPermissionService charts){this(store,queries,permissions,json,Clock.systemUTC(),charts);}
     ChartService(ChartStore store,QueryService queries,PermissionService permissions,ObjectMapper json,Clock clock,ChartPermissionService charts){this.store=store;this.queries=queries;this.permissions=permissions;this.json=json;this.clock=clock;this.charts=charts;}
     private Summary owned(String id){return charts.manage(permissions.current(),id,false);}
     private Summary viewed(String id){return charts.view(permissions.current(),id);}
-    private ChartStore.PreviewRow ownPreview(String id){var actor=permissions.current();var p=store.preview(id);if(p.actorId()!=actor.id()||p.authVersion()!=actor.authVersion())throw new AccessDeniedException("Preview access denied");return p;}
+    private ChartStore.PreviewRow ownPreview(String id){var actor=permissions.current();var p=store.preview(id);if(p.actorId()!=actor.id()||p.authVersion()!=actor.authVersion())throw new AccessDeniedException("Preview access denied");if(semantic!=null)semantic.validate(actor,definition(p.definition()));return p;}
     private Definition definition(String encoded){return json.readValue(encoded,Definition.class);}
     private String encodeParameters(List<Parameter> params){params.forEach(com.datalens.query.QueryParameters::value);String encoded=json.writeValueAsString(params);if(encoded.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>60000)throw ChartRules.invalid("查询参数总大小超出限制");return encoded;}
     private List<Parameter> parameters(String encoded){return Arrays.asList(json.readValue(encoded,Parameter[].class));}
     public Preview preview(PreviewInput input,String requestId) {
-        var actor=permissions.current();var resolved=ChartRules.resolve(input.definition(),clock);
+        var actor=permissions.current();if(semantic!=null)semantic.validate(actor,input.definition());var resolved=ChartRules.resolve(input.definition(),clock);
         var p=store.createPreview(actor,input.idempotencyKey(),json.writeValueAsString(input.definition()),encodeParameters(resolved));
         ownPreview(p.id());
         Definition d=definition(p.definition());
@@ -34,10 +35,20 @@ public class ChartService {
     }
     public Preview preview(String id){var p=ownPreview(id);if(p.taskId()!=null)queries.get(p.taskId());return new Preview(id,definition(p.definition()),p.taskId());}
     public Result previewResult(String id){var p=ownPreview(id);if(p.taskId()==null)throw ChartRules.invalid("预览尚未完成");var result=queries.result(p.taskId());ChartRules.validate(definition(p.definition()).spec(),result);ownPreview(id);return result;}
-    public Summary save(Save input,String requestId){var p=ownPreview(input.previewId());previewResult(p.id());return store.save(permissions.current(),p,input.name().trim(),requestId);}
-    public Summary publish(String id,Publish input,String requestId){owned(id);var p=ownPreview(input.previewId());previewResult(p.id());return store.publish(permissions.current(),id,p,input.name().trim(),input.expectedVersion(),requestId,()->charts.publication(permissions.current(),id,definition(p.definition())));}
-    public PageResult<Summary> list(String scope,int page,int size){return store.list(permissions.current(),scope,page,size);}
-    public Detail detail(String id){var c=viewed(id);var actor=permissions.current();var d=definition(store.definition(id,c.revisionId()));boolean manage=charts.canManage(actor,c);
+    public Summary save(Save input,String requestId){var p=ownPreview(input.previewId());previewResult(p.id());return store.save(permissions.current(),p,input.name().trim(),requestId,()->{ownPreview(p.id());previewResult(p.id());});}
+    public Summary publish(String id,Publish input,String requestId){owned(id);var p=ownPreview(input.previewId());previewResult(p.id());return store.publish(permissions.current(),id,p,input.name().trim(),input.expectedVersion(),requestId,()->{ownPreview(p.id());previewResult(p.id());charts.publication(permissions.current(),id,definition(p.definition()));});}
+    public PageResult<Summary> list(String scope,int page,int size){
+        var actor=permissions.current();if("trash".equals(scope))return store.list(actor,scope,page,size);
+        var visible=new ArrayList<Summary>();int batch=1;PageResult<Summary> rows;
+        do{rows=store.list(actor,scope,batch++,200);for(var c:rows.items()){
+            try{var d=definition(store.definition(c.id(),c.revisionId()));if(d.semanticBinding()!=null)charts.executionOwner(actor,c.id(),c.revisionId());else charts.view(actor,c.id());visible.add(c);}
+            catch(AccessDeniedException|com.datalens.common.web.DomainException denied){/* Exclude revoked semantic assets before counts and pagination. */}
+        }}while((long)(batch-1)*200<rows.total());
+        // Final delivery recheck, including metadata loaded in earlier pages.
+        visible.removeIf(c->{try{var current=charts.view(actor,c.id());if(!current.revisionId().equals(c.revisionId())||current.ownerId()!=c.ownerId()||current.version()!=c.version())return true;var d=definition(store.definition(c.id(),c.revisionId()));if(d.semanticBinding()!=null)charts.executionOwner(actor,c.id(),c.revisionId());return false;}catch(AccessDeniedException|com.datalens.common.web.DomainException denied){return true;}});
+        permissions.current();int from=(int)Math.min((long)(page-1)*size,visible.size()),to=Math.min(from+size,visible.size());return new PageResult<>(visible.subList(from,to),visible.size(),page,size);
+    }
+    public Detail detail(String id){var c=viewed(id);var actor=permissions.current();var d=definition(store.definition(id,c.revisionId()));boolean manage=charts.canManage(actor,c);if(d.semanticBinding()!=null)charts.executionOwner(actor,id,c.revisionId());
         if(!manage)d=new Definition("","",List.of(),d.timeRule(),d.metricDescription(),d.spec());
         var latest=viewed(id);if(latest.version()!=c.version()||latest.ownerId()!=c.ownerId()||!latest.revisionId().equals(c.revisionId()))throw ChartStore.conflict();return new Detail(c.id(),c.name(),c.ownerId(),c.version(),c.revisionId(),d,store.latestTask(id,c.revisionId(),actor.id()),store.lastSuccess(id,c.revisionId(),actor.id()),c.visibility(),manage?store.shares(id):List.of(),c.deleted(),manage);}
     public TaskView refresh(String id,Refresh input,String requestId){var c=viewed(id);var d=definition(store.definition(id,c.revisionId()));

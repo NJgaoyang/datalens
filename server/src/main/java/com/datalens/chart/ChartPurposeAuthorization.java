@@ -10,6 +10,7 @@ import com.datalens.query.QueryService.QueryContext;
 /** Shared viewing is a persisted chart capability, never a free-form query grant. */
 @Component
 public class ChartPurposeAuthorization implements QueryPurposeAuthorization {
+    @org.springframework.beans.factory.annotation.Autowired private ChartSemanticAuthorization semantic;
     private final ChartStore store;private final PermissionService permissions;private final ChartPermissionService charts;private final ObjectMapper json;
     public ChartPurposeAuthorization(ChartStore store,PermissionService permissions,ChartPermissionService charts,ObjectMapper json){this.store=store;this.permissions=permissions;this.charts=charts;this.json=json;}
     @Override public boolean supports(String purpose){return "CHART".equals(purpose)||"CHART_PREVIEW".equals(purpose);}
@@ -17,6 +18,7 @@ public class ChartPurposeAuthorization implements QueryPurposeAuthorization {
         if("CHART_PREVIEW".equals(context.purpose())){var p=store.preview(context.resourceId());if(p.actorId()!=actor.id()||p.authVersion()!=actor.authVersion()||context.revisionId()!=null)throw new AccessDeniedException("Preview access denied");}
         else if("CHART".equals(context.purpose()))charts.executionOwner(actor,context.resourceId(),context.revisionId());
         else throw new AccessDeniedException("Unsupported purpose");
+        if(semantic!=null){var d=json.readValue("CHART_PREVIEW".equals(context.purpose())?store.preview(context.resourceId()).definition():store.definition(context.resourceId(),context.revisionId()),ChartModels.Definition.class);semantic.validate(executionActor(actor,context),d);}
     }
     @Override public CurrentActor executionActor(CurrentActor actor,QueryContext context){return "CHART".equals(context.purpose())?charts.executionOwner(actor,context.resourceId(),context.revisionId()):permissions.requireActive(actor);}
     @Override public void validateSubmission(CurrentActor actor,QueryContext context,QueryModels.Submit input){

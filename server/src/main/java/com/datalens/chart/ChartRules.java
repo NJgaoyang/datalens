@@ -17,13 +17,20 @@ public final class ChartRules {
             if(rule.days()!=null||rule.timeZone()!=null||rule.startIndex()!=null||rule.endIndex()!=null)throw invalid("固定日期规则不能包含相对日期设置");
             return List.copyOf(params);
         }
-        if(!rule.kind().equals("LAST_DAYS")||rule.days()==null||rule.days()<1||rule.days()>3660||rule.timeZone()==null||!ZoneId.getAvailableZoneIds().contains(rule.timeZone()))throw invalid("业务时区或日期范围无效");
+        boolean lastMonth=rule.kind().equals("LAST_MONTH");
+        if((!lastMonth&&!rule.kind().equals("LAST_DAYS")) || (lastMonth?rule.days()!=null:rule.days()==null||rule.days()<1||rule.days()>3660) || rule.timeZone()==null||!ZoneId.getAvailableZoneIds().contains(rule.timeZone()))throw invalid("业务时区或日期范围无效");
         if(rule.startIndex()==null||rule.endIndex()==null||rule.startIndex().equals(rule.endIndex())||rule.startIndex()<0||rule.endIndex()<0||rule.startIndex()>=params.size()||rule.endIndex()>=params.size())throw invalid("日期参数位置无效");
-        if(!params.get(rule.startIndex()).type().equals("DATE")||!params.get(rule.endIndex()).type().equals("DATE"))throw invalid("相对日期参数必须是 DATE");
-        LocalDate today=LocalDate.now(clock.withZone(ZoneId.of(rule.timeZone())));
-        params.set(rule.startIndex(),new Parameter("DATE",today.minusDays(rule.days()-1L).toString()));
-        params.set(rule.endIndex(),new Parameter("DATE",today.plusDays(1).toString()));
+        String type=params.get(rule.startIndex()).type();
+        if(type==null||!Set.of("DATE","TIMESTAMP").contains(type)||!type.equals(params.get(rule.endIndex()).type()))throw invalid("相对日期参数必须是相同的 DATE 或 TIMESTAMP 类型");
+        ZoneId zone=ZoneId.of(rule.timeZone());LocalDate today=LocalDate.now(clock.withZone(zone));
+        LocalDate end=lastMonth?today.withDayOfMonth(1):today.plusDays(1);
+        LocalDate start=lastMonth?end.minusMonths(1):today.minusDays(rule.days()-1L);
+        params.set(rule.startIndex(),boundary(type,start,zone));
+        params.set(rule.endIndex(),boundary(type,end,zone));
         return List.copyOf(params);
+    }
+    private static Parameter boundary(String type,LocalDate date,ZoneId zone) {
+        return new Parameter(type,type.equals("DATE")?date.toString():date.atStartOfDay(zone).toInstant().toString());
     }
     public static void validate(Spec spec,Result result) {
         Set<String> fields=new HashSet<>();for(Column c:result.columns())if(!fields.add(c.name()))throw invalid("输出字段名重复");

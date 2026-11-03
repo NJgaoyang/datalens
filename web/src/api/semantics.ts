@@ -2,7 +2,8 @@ import { ApiError, getApi, requestApi } from './http';
 import type { Field } from './datasources';
 import type { Parameter } from './queries';
 export interface BusinessField { id:string; name:string; aliases:string[]; physical:Field; type:string; unit:string; sensitivity:'PUBLIC'|'INTERNAL'|'SENSITIVE' }
-export interface Metric { id:string; name:string; aliases:string[]; calculation:string; filters:string; timeFieldId:string; owner:string; unit:string; grain:string; nullHandling:string; timePolicy:string; fieldIds:string[]; sql:string; parameters:Parameter[] }
+export interface TimeParameters { startIndex:number; endIndex:number; timeZone:string; parameterType:'DATE'|'TIMESTAMP' }
+export interface Metric { id:string; name:string; aliases:string[]; calculation:string; filters:string; timeFieldId:string; owner:string; unit:string; grain:string; nullHandling:string; timePolicy:string; fieldIds:string[]; sql:string; parameters:Parameter[]; timeParameters?:TimeParameters|null }
 export interface Dimension { id:string; name:string; aliases:string[]; fieldId:string }
 export interface Relation { id:string; name:string; leftFieldId:string; rightFieldId:string; cardinality:'ONE_TO_ONE'|'MANY_TO_ONE'|'ONE_TO_MANY'|'MANY_TO_MANY'|'UNKNOWN'; leftGrain:string; rightGrain:string }
 export interface Example { id:string; question:string; metricIds:string[]; sql:string; parameters:Parameter[]; verification:string }

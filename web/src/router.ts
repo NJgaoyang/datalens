@@ -11,7 +11,7 @@ import QueryView from './views/QueryView.vue';
 const ChartsView = () => import('./views/ChartsView.vue');
 const ModelView = () => import('./views/ModelView.vue');
 const SemanticsView = () => import('./views/SemanticsView.vue');
-import PlannedModuleView from './views/PlannedModuleView.vue';
+const ConversationView = () => import('./views/ConversationView.vue');
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -19,7 +19,8 @@ export const router = createRouter({
     { path: '/login', component: LoginView, meta: { title: '登录', public: true } },
     { path: '/account/password', component: PasswordView, meta: { title: '修改密码' } },
     { path: '/', component: FoundationView, meta: { title: '工程概览', anonymous: true } },
-    { path: '/ask', component: PlannedModuleView, meta: { title: '智能问数', stage: 'M08', description: '先完成受控查询、业务语义和图表权限，再接入自然语言问数。' } },
+    { path: '/ask', component: ConversationView, meta: { title: '智能问数' } },
+    { path: '/ask/:id', component: ConversationView, meta: { title: '智能问数' } },
     { path: '/charts/mine', component: ChartsView, meta: { title: '我的图表' } },
     { path: '/charts/new', component: ChartsView, meta: { title: '新建私有图表' } },
     { path: '/charts/shared', component: ChartsView, meta: { title: '共享给我' } },

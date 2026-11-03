@@ -18,3 +18,7 @@ Keys are password inputs and are cleared after validation failures, submission, 
 `npx playwright test e2e/model.spec.ts --list` passed and discovered all six tests. Six browser cases are supplied: ordinary-user route denial; admin credential discard, version and CSRF; endpoint replacement and conflict recovery; expired session; unconfigured defaults/navigation cleanup; failed reload removing stale state. The final two were added after identifying the common browser startup blocker and were not executed.
 
 No real API key was used, no model provider was contacted and no publish/deploy was performed. CI on the exact final commit, runnable-browser verification and live server/provider integration remain separate gates.
+
+## CI acceptance update
+
+Exact commit `9b793a7f5d48de1a9fc7e4174890381aada6c04e`: all 47 unit tests, 62 Chromium scenarios (including six model scenarios), clean install and production build passed in [Frontend verification](https://github.com/NJgaoyang/datalens/actions/runs/41654779915). This supersedes the earlier pending-browser status; local IPC restriction remains an environment limitation.

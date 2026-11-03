@@ -1,5 +1,17 @@
 # M07 — Model integration and controlled calls
 
+## Verified CI acceptance — 2026-11-03
+
+Exact accepted code commit: `9b793a7f5d48de1a9fc7e4174890381aada6c04e`.
+
+- [Backend verification](https://github.com/NJgaoyang/datalens/actions/runs/41654779930): Maven verify/package succeeded, **288 unit + 73 real MySQL/Redis integration tests passed**, including all four ModelIT cases.
+- [Frontend verification](https://github.com/NJgaoyang/datalens/actions/runs/41654779915): clean install, **47 unit + 62 Chromium browser tests passed**, typecheck/build passed.
+- [Disposable Docker acceptance](https://github.com/NJgaoyang/datalens/actions/runs/41654779970): model-free cold start, same-volume restart, dependency failure/recovery passed.
+- CI exposed and fixed a MySQL budget-row lock-upgrade deadlock: duplicate-key no-op UPDATE now obtains an exclusive row lock before reservation. Concurrent budget test passed. Foundation stage/module/seed-count assertions were updated for M07.
+- **No live model provider was contacted.** Real-provider TLS/protocol/billing and real StarRocks/business-semantic acceptance remain pending. No merge/deployment.
+
+The local-verification limitations below describe the earlier local environment; the CI results above supersede their pending CI/browser/MySQL/Compose entries.
+
 ## Task and scope
 
 Depends on M03 query service and M06 published semantic snapshots. Goal: provider-neutral ModelGateway, structured QueryIntent/QueryPlan/ChartSpec proposals, superadmin configuration, encrypted secrets, bounded calls and safe application-owned tools. M06 code/CI accepted upstream; real business semantic examples and StarRocks acceptance remain separate pending gates.

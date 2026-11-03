@@ -75,7 +75,9 @@ public class QueryService {
     public QueryService(QueryStore store,QuerySourceAccess sources,PermissionService permissions,QueryLease lease,ObjectMapper json) {
         this.store=store;this.sources=sources;this.permissions=permissions;this.lease=lease;this.json=json;
     }
+    @org.springframework.core.annotation.Order(0)
     @EventListener(ApplicationReadyEvent.class) public void start() throws SQLException {lease.acquire();store.recover();ready=true;}
+    public void requireAvailable(){if(!ready||!lease.valid())throw new DomainException(503,"QUERY_EXECUTOR_UNAVAILABLE","查询执行器暂不可用");}
     public TaskView submit(Submit input,String requestId) {
         return submitForPurpose(input,null,requestId);
     }

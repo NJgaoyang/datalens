@@ -11,6 +11,7 @@ import static com.datalens.chart.ChartModels.*;
 /** One deny-by-default resource policy, also used by generic query endpoints. */
 @Service
 public class ChartPermissionService {
+    @org.springframework.beans.factory.annotation.Autowired private ChartSemanticAuthorization semantic;
     private final ChartStore store;private final PermissionService permissions;private final AccountDirectory accounts;private final QuerySourceAccess sources;private final ObjectMapper json;
     public ChartPermissionService(ChartStore store,PermissionService permissions,AccountDirectory accounts,QuerySourceAccess sources,ObjectMapper json){this.store=store;this.permissions=permissions;this.accounts=accounts;this.sources=sources;this.json=json;}
     public boolean canManage(CurrentActor actor,Summary c){return c.ownerId()==actor.id()||"SUPER_ADMIN".equals(actor.role());}
@@ -21,10 +22,11 @@ public class ChartPermissionService {
     public CurrentActor executionOwner(CurrentActor viewer,String id,String revision){var c=view(viewer,id);if(!Objects.equals(c.revisionId(),revision))throw new AccessDeniedException("Published chart revision changed");
         var owner=accounts.active(c.ownerId());validateDefinition(owner,definition(c),c.visibility(),store.shares(id));return owner;}
     public void validateDefinition(CurrentActor owner,Definition d,String visibility,List<Long> users){
+        if(semantic!=null)semantic.validate(owner,d);
         var scope=sources.authorizeSharing(owner,d.subjectId(),visibility,users);
         SafeSql.validate(d.sql(),scope.columns(),d.parameters());
     }
-    public void publication(CurrentActor actor,String id,Definition d){var c=manage(actor,id,false);validateDefinition(accounts.active(c.ownerId()),d,"PRIVATE",List.of());}
+    public void publication(CurrentActor actor,String id,Definition d){var c=manage(actor,id,false);if(definition(c).semanticBinding()!=null&&d.semanticBinding()==null)throw new AccessDeniedException("Semantic provenance cannot be removed");validateDefinition(accounts.active(c.ownerId()),d,"PRIVATE",List.of());}
     public void sharing(CurrentActor actor,String id,Sharing input){var c=manage(actor,id,false);
         if(!Set.of("PRIVATE","ALL","SPECIFIC").contains(input.visibility())||new HashSet<>(input.userIds()).size()!=input.userIds().size()||input.userIds().contains(c.ownerId()))throw ChartRules.invalid("共享范围或用户无效");
         if(input.visibility().equals("SPECIFIC")?input.userIds().isEmpty():!input.userIds().isEmpty())throw ChartRules.invalid("共享用户与范围不一致");

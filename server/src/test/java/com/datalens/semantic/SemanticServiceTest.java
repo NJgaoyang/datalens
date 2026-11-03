@@ -67,6 +67,14 @@ class SemanticServiceTest {
         assertThatThrownBy(()->service.review("subject",new Review(3,false),"trace")).isInstanceOf(DomainException.class);
         verify(store,never()).review(anyString(),anyLong());
     }
+    @Test void invalidTimeReplacementCannotBeReviewedPublishedOrRetrieved() {
+        var metric=SemanticTimeRulesTest.metric(SemanticTimeRulesTest.sql(),SemanticTimeRulesTest.dates(),new TimeParameters(1,0,"UTC","DATE"));
+        seed(SemanticFixtures.withMetric(SemanticFixtures.document(),metric));
+        assertThatThrownBy(()->service.review("subject",new Review(3,true),"trace")).isInstanceOf(DomainException.class);
+        assertThatThrownBy(()->service.publish("subject",new Version(3),"trace")).isInstanceOf(DomainException.class);
+        assertThatThrownBy(()->service.published("subject")).isInstanceOf(DomainException.class);
+        verify(store,never()).review(anyString(),anyLong());verify(store,never()).publish(any(),anyLong());
+    }
     @Test void ambiguousAliasSearchKeepsBothCandidatesAndActualActorAudit() {
         var d=SemanticFixtures.document();seed(new Document(d.fields(),List.of(d.metrics().getFirst(),SemanticFixtures.metric("sales_other","另一口径",d.metrics().getFirst().sql())),d.dimensions(),d.relations(),d.examples()));
         var found=service.search("subject","营收","trace");

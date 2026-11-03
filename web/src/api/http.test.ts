@@ -65,3 +65,13 @@ describe('session security', () => {
     expect(mock).toHaveBeenCalledTimes(2);
   });
 });
+
+it('ignores a late unauthorized response from an already abandoned request', async () => {
+  const controller = new AbortController(), handler = vi.fn(); setUnauthorizedHandler(handler);
+  vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => {
+    controller.abort(new DOMException('Aborted', 'AbortError'));
+    return new Response(JSON.stringify({ ...envelope, code: 'UNAUTHORIZED' }), { status: 401 });
+  }));
+  await expect(getApi('/api/v1/conversations/c1', controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
+  expect(handler).not.toHaveBeenCalled();
+});

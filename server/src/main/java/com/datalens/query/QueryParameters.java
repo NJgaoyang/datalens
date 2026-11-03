@@ -18,7 +18,9 @@ public final class QueryParameters {
                 case "INTEGER" -> Long.valueOf(p.value());
                 case "BOOLEAN" -> {if(!Set.of("true","false").contains(p.value()))throw new IllegalArgumentException();yield Boolean.valueOf(p.value());}
                 case "DATE" -> java.sql.Date.valueOf(LocalDate.parse(p.value()));
-                case "TIMESTAMP" -> Timestamp.valueOf(LocalDateTime.parse(p.value()));
+                // Reviewed relative periods use explicit UTC instants. Existing local timestamp
+                // values remain supported for backward-compatible fixed query definitions.
+                case "TIMESTAMP" -> p.value().endsWith("Z")?Timestamp.from(Instant.parse(p.value())):Timestamp.valueOf(LocalDateTime.parse(p.value()));
                 default -> throw new IllegalArgumentException();
             };
         } catch(RuntimeException failure) {throw new DomainException(400,"QUERY_PARAMETER_INVALID","查询参数格式无效");}
@@ -26,7 +28,10 @@ public final class QueryParameters {
     public static void bind(PreparedStatement statement,List<Parameter> parameters) throws SQLException {
         for(int i=0;i<parameters.size();i++) {
             Object value=value(parameters.get(i));
-            if(value==null)statement.setNull(i+1,Types.NULL);else statement.setObject(i+1,value);
+            if(value==null)statement.setNull(i+1,Types.NULL);
+            else if(value instanceof Timestamp timestamp && parameters.get(i).value().endsWith("Z"))
+                statement.setTimestamp(i+1,timestamp,Calendar.getInstance(TimeZone.getTimeZone("UTC")));
+            else statement.setObject(i+1,value);
         }
     }
 }

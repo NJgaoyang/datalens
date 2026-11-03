@@ -3,7 +3,7 @@ import { validateResult, type Parameter, type QueryResult, type QueryTask } from
 export const chartTypes = ['TABLE', 'KPI', 'BAR', 'LINE', 'PIE'] as const;
 export type ChartType = typeof chartTypes[number];
 export interface ChartSpec { type: ChartType; dimension: string|null; measures: string[] }
-export interface ChartDefinition { subjectId: string; sql: string; parameters: Parameter[]; timeRule: { kind: 'NONE'|'LAST_DAYS'; days?: number|null; timeZone?: string|null; startIndex?: number|null; endIndex?: number|null }; metricDescription: string; spec: ChartSpec }
+export interface ChartDefinition { subjectId: string; sql: string; parameters: Parameter[]; timeRule: { kind: 'NONE'|'LAST_DAYS'|'LAST_MONTH'; days?: number|null; timeZone?: string|null; startIndex?: number|null; endIndex?: number|null }; metricDescription: string; spec: ChartSpec; semanticBinding?: { publicationVersion: number; digest: string; scopeFingerprint: string; metricId: string }|null }
 export interface Preview { id: string; definition: ChartDefinition; taskId: string }
 export type ChartScope = 'mine'|'shared'|'all'|'admin'|'trash';
 export type ChartVisibility = 'PRIVATE'|'ALL'|'SPECIFIC';

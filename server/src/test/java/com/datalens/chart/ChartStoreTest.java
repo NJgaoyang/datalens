@@ -42,4 +42,5 @@ class ChartStoreTest {
         assertThat(store.save(actor,preview,"Original","request")).isEqualTo(renamed);
         assertThatThrownBy(()->store.save(actor,preview,"Renamed","request")).isInstanceOf(DomainException.class);
     }
+    @Test void lockedRechecksUseReadCommittedNotSnapshotIsolation(){var manager=mock(PlatformTransactionManager.class);when(manager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));var checked=spy(new ChartStore(db,manager,mock(AuditService.class)));doNothing().when(checked).lock();doReturn(old).when(checked).chart("chart");doReturn(new ChartStore.Run("run","chart","revision-1",7,"[]",null)).when(checked).run(anyString());checked.createRun(actor,old,"new-key","[]");verify(manager).getTransaction(argThat(d->d.getIsolationLevel()==org.springframework.transaction.TransactionDefinition.ISOLATION_READ_COMMITTED));}
 }
