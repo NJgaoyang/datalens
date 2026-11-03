@@ -46,6 +46,14 @@ jobs:
           java-version: '21'
           cache: maven
           cache-dependency-path: server/pom.xml
+      - name: Preserve accepted migration bytes
+        shell: bash
+        run: |
+          baseline=67089355b4be6a8dfb3becf1c77347ad9496b14b
+          git fetch --no-tags --depth=1 origin "$baseline"
+          while IFS= read -r path; do
+            git show "$baseline:$path" | cmp - "$path"
+          done < <(git ls-tree -r --name-only "$baseline" -- server/src/main/resources/db/migration)
       - name: Validate offline business-evidence gate
         run: python3 -m unittest discover -s tests/acceptance -p 'test_*.py' -v
       - name: Verify toolchain

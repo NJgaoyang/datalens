@@ -8,7 +8,7 @@ Development integration and release preparation are implemented; **production ac
 
 - M10-01: assess complete lifecycle/security/reliability evidence across M00–M09; integrate final M09 report and reconcile baseline documentation.
 - M10-02: add query-executor lease-aware readiness, negative regression and disposable metadata restart/recovery drill.
-- M10-03: add real MySQL V9→V10 additive migration acceptance and full logical backup/fresh-volume restore equality check; retain existing empty/same-volume and Redis recovery tests.
+- M10-03: pin existing migration bytes to the accepted M09 SHA, add real MySQL V9→V10 additive migration acceptance and full logical backup/fresh-volume restore equality check; retain existing empty/same-volume and Redis recovery tests.
 - M10-04: provide offline independent-business-evidence validator, fail-closed empty template and performance protocol; document production gates and backup/rollback operator plan.
 
 Dependencies: M00–M09. Allowed scope: acceptance, health signal, CI, documentation. No new API routes, database migrations, live integrations, new provider dependencies or production settings. Health response stays opaque UP/DOWN; readiness now includes `queryExecutor`.
@@ -31,13 +31,22 @@ Dependencies: M00–M09. Allowed scope: acceptance, health signal, CI, documenta
 - `mvn -B -ntp -f server/pom.xml verify -Pintegration` using disposable MySQL/Redis and the dedicated upgrade schema.
 - `npm ci && npm test && npm run build && npm run test:e2e` in `web`.
 - `bash .github/scripts/compose-smoke.sh` on disposable GitHub-hosted CI only. Its cleanup cannot target normal local/shared environments.
-- `python3 -m unittest discover -s tests/acceptance -p 'test_*.py' -v` (9 validator regressions, NOT 100 business cases).
+- `python3 -m unittest discover -s tests/acceptance -p 'test_*.py' -v` (12 validator regressions, NOT 100 business cases).
 - Local Java 21 full source compilation and cached-classpath unit fallback are supplementary, not Maven/package/integration evidence. Maven locally cannot resolve Maven Central; Docker is unavailable. Local Java21 compilation passed; cached JUnit fallback passed 358 tests, zero failures/skips, and frontend 69 unit tests plus typecheck/build passed. Exact pushed-commit CI is authoritative and will be recorded after execution.
 
 The prior M09 accepted head is `67089355b4be6a8dfb3becf1c77347ad9496b14b`; its 356 unit + 91 integration, 69 frontend unit + 83 browser and Compose results are in `M09-acceptance.md` and do not count as an M10 run.
 
 ## Independent review
 
-A separate read-only review identified green readiness after lost exclusive executor lease; fixed by exposing executor availability in readiness and exercising metadata restart/recovery. Other verified boundaries remain explicit release blockers rather than hidden assumptions: lifetime storage growth, chart-list full scans, post-allocation large-cell cap, manual quarantine recovery, external wrapping-key escrow and complete versioned state. See `deploy/production-readiness.md` for exact operational requirements.
+A separate read-only review identified green readiness after lost exclusive executor lease; fixed by exposing executor availability in readiness and exercising metadata restart/recovery. A separate HTTP integration regression proves db/redis are UP while lease-only failure produces opaque HTTP 503, so generic DB failure cannot falsely satisfy that gate. The business comparator also rejects numeric precision hazards and normalized duplicate questions. Other verified boundaries remain explicit release blockers rather than hidden assumptions: lifetime storage growth, chart-list full scans, post-allocation large-cell cap, manual quarantine recovery, external wrapping-key escrow and complete versioned state. See `deploy/production-readiness.md` for exact operational requirements.
 
 The production decision cannot turn green solely because these automated tests pass. The independent business template is intentionally empty; no artificial question count, real performance result, live database cancellation or production-ready assertion is supplied.
+
+## Initial exact-commit execution (2026-11-03)
+
+Candidate `f4fbd4c36ee5946a8d9ef417d2e2c0606a9124a5` passed all three workflows:
+- Backend: https://github.com/NJgaoyang/datalens/actions/runs/41661927192
+- Frontend: https://github.com/NJgaoyang/datalens/actions/runs/41661927214
+- Disposable Docker: https://github.com/NJgaoyang/datalens/actions/runs/41661927171
+
+The real synthetic MySQL backup→fresh-volume restore, exact full-dump comparison, restored application readiness and MySQL/Redis outage recovery all passed. No real analytical service was involved. Subsequent review strengthens the lease-only HTTP assertion, historical migration-byte check, and comparator precision/question uniqueness tests. Those follow-up changes require their own exact-head CI; the links above do not falsely certify later commits. Current workflow history is the authoritative final status.

@@ -6,6 +6,7 @@ not proof that supplied evidence is authentic or independently reviewed.
 import argparse
 import hashlib
 import json
+import unicodedata
 from pathlib import Path
 
 CATEGORIES = {"aggregation", "dates", "joins", "nulls", "distinct", "units", "ambiguity"}
@@ -15,7 +16,18 @@ def canonical(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
+def validate_result(value):
+    if isinstance(value, float) or (isinstance(value, int) and abs(value) > 9007199254740991):
+        raise ValueError("Decimal and unsafe bigint results must use exact strings")
+    if isinstance(value, dict):
+        for child in value.values(): validate_result(child)
+    elif isinstance(value, list):
+        for child in value: validate_result(child)
+
+
 def evaluate(suite, results):
+    if not isinstance(suite, dict) or not isinstance(results, dict):
+        raise ValueError("Suite and results must be JSON objects")
     cases = suite.get("cases", [])
     if len(cases) < 100:
         raise ValueError("At least 100 independently reviewed business cases are required")
@@ -33,9 +45,15 @@ def evaluate(suite, results):
     if any(not isinstance(i, str) or not i for i in ids) or len(set(ids)) != len(ids):
         raise ValueError("Case IDs must be nonempty and unique")
     coverage = set()
+    questions = set()
     for case in cases:
         if not case.get("question") or not case.get("reviewed_by") or "expected" not in case:
             raise ValueError("Every case needs a question, independent reviewer and expected result")
+        normalized = " ".join(unicodedata.normalize("NFKC", case["question"]).casefold().split())
+        if not normalized or normalized in questions:
+            raise ValueError("Business questions must be nonempty and distinct")
+        questions.add(normalized)
+        validate_result(case["expected"])
         coverage.update(case.get("categories", []))
     if not CATEGORIES <= coverage:
         raise ValueError("Missing required coverage: " + ", ".join(sorted(CATEGORIES - coverage)))
@@ -43,6 +61,8 @@ def evaluate(suite, results):
     actual_ids = [case.get("id") for case in actual]
     if len(set(actual_ids)) != len(actual_ids) or set(actual_ids) != set(ids):
         raise ValueError("Actual results must include every case exactly once, no extras")
+    for case in actual:
+        if "actual" in case: validate_result(case["actual"])
     lookup = {case["id"]: case for case in actual}
     passed = [case["id"] for case in cases if "actual" in lookup[case["id"]]
               and canonical(case["expected"]) == canonical(lookup[case["id"]]["actual"])]

@@ -28,6 +28,8 @@ class FoundationIT {
     @Autowired Flyway flyway;
     @Autowired JdbcTemplate jdbc;
     @Autowired StringRedisTemplate redis;
+    @Autowired com.datalens.query.QueryLease queryLease;
+    @Autowired org.springframework.boot.health.actuate.endpoint.HealthEndpoint health;
     private MockMvc mvc;
 
     @BeforeEach void setUp() {
@@ -62,6 +64,21 @@ class FoundationIT {
                 .andExpect(jsonPath("$.status").value("UP"));
         mvc.perform(get("/actuator/health/readiness")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP")).andExpect(jsonPath("$.components").doesNotExist());
+    }
+
+    @Test void lostLeaseAloneMakesReadinessFailEvenWithHealthyDatabaseAndRedis() throws Exception {
+        // Disposable idle integration process only: deliberately release its advisory lock.
+        queryLease.close();
+        try {
+            assertThat(jdbc.queryForObject("SELECT 1", Integer.class)).isEqualTo(1);
+            assertThat(health.healthForPath("db").getStatus().getCode()).isEqualTo("UP");
+            assertThat(health.healthForPath("redis").getStatus().getCode()).isEqualTo("UP");
+            assertThat(health.healthForPath("queryExecutor").getStatus().getCode()).isEqualTo("DOWN");
+            mvc.perform(get("/actuator/health/readiness")).andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.status").value("DOWN")).andExpect(jsonPath("$.components").doesNotExist());
+            mvc.perform(get("/actuator/health/liveness")).andExpect(status().isOk());
+        } finally { queryLease.acquire(); }
+        mvc.perform(get("/actuator/health/readiness")).andExpect(status().isOk());
     }
 
     @Test void redisWorksWithoutBecomingPersistentFactSource() {

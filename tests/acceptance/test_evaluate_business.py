@@ -9,7 +9,7 @@ class EvidenceEvaluatorTest(unittest.TestCase):
     def setUp(self):
         self.suite = {"frozen_at": "fixture", "reviewer": "fixture", "dataset_version": "fixture",
                       "target_correctness": 1, "cases": [
-                          {"id": str(i), "question": "fixture", "reviewed_by": "fixture",
+                          {"id": str(i), "question": "fixture " + str(i), "reviewed_by": "fixture",
                            "categories": sorted(CATEGORIES), "expected": {"amount": "9007199254740993.01"}}
                           for i in range(100)]}
         self.results = {"dataset_version": "fixture", "commit_sha": "fixture", "executed_at": "fixture",
@@ -23,7 +23,7 @@ class EvidenceEvaluatorTest(unittest.TestCase):
         self.assertTrue(evaluate(self.suite, self.results)["accepted"])
 
     def test_precision_difference_fails_and_reports_no_values(self):
-        self.results["cases"][0]["actual"] = {"amount": 9007199254740993.01}
+        self.results["cases"][0]["actual"] = {"amount": "9007199254740993.02"}
         report = evaluate(self.suite, self.results)
         self.assertFalse(report["accepted"])
         self.assertEqual(report["failed_ids"], ["0"])
@@ -57,6 +57,21 @@ class EvidenceEvaluatorTest(unittest.TestCase):
     def test_missing_actual_is_failure_not_empty_success(self):
         del self.results["cases"][0]["actual"]
         self.assertFalse(evaluate(self.suite, self.results)["accepted"])
+
+    def test_float_and_unsafe_integer_rejected_even_if_both_match(self):
+        for value in [1.25, 9007199254740993, {"nested": [1.25]}]:
+            self.suite["cases"][0]["expected"] = value
+            self.results["cases"][0]["actual"] = value
+            self.bind()
+            with self.assertRaises(ValueError): evaluate(self.suite, self.results)
+
+    def test_duplicate_questions_rejected(self):
+        self.suite["cases"][1]["question"] = "  FIXTURE   0 "
+        self.bind()
+        with self.assertRaises(ValueError): evaluate(self.suite, self.results)
+
+    def test_nonobject_documents_rejected(self):
+        with self.assertRaises(ValueError): evaluate([], self.results)
 
     def test_threshold_required(self):
         self.suite["target_correctness"] = True

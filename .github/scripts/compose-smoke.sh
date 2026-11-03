@@ -128,6 +128,7 @@ test -s "$backup_dir/metadata.sql"
 sha256sum "$backup_dir/metadata.sql" | cut -d ' ' -f1 > test-results/compose/backup-sha256.txt
 "${compose[@]}" down
 "${restore[@]}" up -d --wait mysql redis
+[[ $("${restore[@]}" exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --batch --skip-column-names -u "$MYSQL_USER" "$MYSQL_DATABASE" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE();"') == 0 ]]
 "${restore[@]}" exec -T mysql sh -c \
   'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u "$MYSQL_USER" "$MYSQL_DATABASE"' < "$backup_dir/metadata.sql"
 # Compare a full, deterministically ordered logical dump BEFORE startup recovery.
