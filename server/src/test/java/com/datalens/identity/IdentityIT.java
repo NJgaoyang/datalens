@@ -19,6 +19,7 @@ class IdentityIT {
     @Autowired JdbcTemplate jdbc;
     @Autowired PasswordEncoder encoder;
     @Autowired ObjectMapper json;
+    @Autowired IdentityService identities;
     @Autowired StringRedisTemplate redis;
     String admin, user;
     long adminId,userId;
@@ -116,6 +117,38 @@ class IdentityIT {
         assertThat(a.send("PUT","/api/v1/admin/users/"+adminId+"/enabled",json.writeValueAsString(Map.of("enabled",false)),true).statusCode()).isEqualTo(409);
         assertThat(a.send("GET","/api/v1/admin/users?page=0",null,false).statusCode()).isEqualTo(400);
         assertThat(a.send("GET","/api/v1/not-implemented",null,false).statusCode()).isEqualTo(403);
+    }
+    @Test void changePasswordInvalidatesOtherSessionsAndBootstrapNeverResetsExistingAccounts() throws Exception {
+        Browser one=new Browser(),two=new Browser();one.login(user,PASSWORD);two.login(user,PASSWORD);
+        var changed=one.send("POST","/api/v1/auth/password",json.writeValueAsString(Map.of("currentPassword",PASSWORD,"newPassword","New-own-password-42")),true);
+        assertThat(changed.statusCode()).isEqualTo(200);
+        assertThat(one.me().statusCode()).isEqualTo(401);assertThat(two.me().statusCode()).isEqualTo(401);
+        identities.bootstrap(admin,"Different-bootstrap-42");
+        assertThat(new Browser().login(admin,PASSWORD).statusCode()).isEqualTo(200);
+        assertThat(new Browser().login(user,"New-own-password-42").statusCode()).isEqualTo(200);
+    }
+    @Test void concurrentAdminsCannotBothDisableEachOther() throws Exception {
+        String secondName="other_"+admin;long secondId=create(secondName,"SUPER_ADMIN");
+        Browser first=new Browser(),second=new Browser();first.login(admin,PASSWORD);second.login(secondName,PASSWORD);
+        var start=new java.util.concurrent.CountDownLatch(1);
+        try(var executor=java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var one=executor.submit(()->{start.await();return first.send("PUT","/api/v1/admin/users/"+secondId+"/enabled",json.writeValueAsString(Map.of("enabled",false)),true).statusCode();});
+            var two=executor.submit(()->{start.await();return second.send("PUT","/api/v1/admin/users/"+adminId+"/enabled",json.writeValueAsString(Map.of("enabled",false)),true).statusCode();});
+            start.countDown();
+            assertThat(List.of(one.get(10,java.util.concurrent.TimeUnit.SECONDS),two.get(10,java.util.concurrent.TimeUnit.SECONDS)))
+                .containsExactlyInAnyOrder(200,401);
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sys_user WHERE id IN (?,?) AND enabled=TRUE",Integer.class,adminId,secondId)).isEqualTo(1);
+    }
+    @Test void unknownAccountsAreThrottledBeforeUnlimitedHashing() throws Exception {
+        Browser b=new Browser();String absent="absent_"+user;
+        for(int i=0;i<10;i++) assertThat(b.login(absent,PASSWORD).statusCode()).isEqualTo(401);
+        assertThat(b.login(absent,PASSWORD).statusCode()).isEqualTo(429);
+    }
+    @Test void expiredLockAllowsLoginAndResetsFailureCount() throws Exception {
+        jdbc.update("UPDATE sys_user SET failed_attempts=5,locked_until=DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 MINUTE) WHERE id=?",userId);
+        assertThat(new Browser().login(user,PASSWORD).statusCode()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT failed_attempts FROM sys_user WHERE id=?",Integer.class,userId)).isZero();
     }
     @Test void repeatedFailuresArePersistentlyRateLimited() throws Exception {
         Browser b=new Browser();

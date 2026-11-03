@@ -30,8 +30,9 @@ public class IdentityService {
         if(password==null || password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>72)
             throw new DomainException(401,"UNAUTHENTICATED","用户名或密码错误，或账号暂不可用");
         UserAccount user=users.lockByUsername(username(name));
-        boolean matches=passwords.matches(password, user==null ? dummyHash : user.passwordHash());
         Instant now=Instant.now();
+        // Admission bounds expensive work; retain equal-cost checks for locked/absent usernames.
+        boolean matches=passwords.matches(password, user==null ? dummyHash : user.passwordHash());
         if(user==null || !user.enabled() || (user.lockedUntil()!=null && now.isBefore(user.lockedUntil())) || !matches) {
             if(user!=null && user.enabled() && (user.lockedUntil()==null || !now.isBefore(user.lockedUntil()))) {
                 int attempts=user.lockedUntil()!=null ? 1 : user.failedAttempts()+1;
@@ -46,7 +47,9 @@ public class IdentityService {
     }
     @Transactional
     public UserView create(String name,String password,String role,String requestId) {
+        users.lockAdministration();
         CurrentActor actor=permissions.requireSuperAdmin();
+        validateLocked(users.lock(actor.id()),actor);
         return createInternal(name,password,role,actor.id(),requestId);
     }
     private UserView createInternal(String name,String password,String role,Long actor,String requestId) {
@@ -74,13 +77,14 @@ public class IdentityService {
         CurrentActor actor=permissions.current();
         UserAccount user=users.lock(actor.id());
         validateLocked(user,actor);
-        if(!passwords.matches(current,user.passwordHash())) throw new DomainException(400,"PASSWORD_MISMATCH","当前密码不正确");
+        if(current.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>72 || !passwords.matches(current,user.passwordHash())) throw new DomainException(400,"PASSWORD_MISMATCH","当前密码不正确");
         replacePassword(actor,user,replacement,"CHANGE_PASSWORD",requestId);
     }
     @Transactional
     public void resetPassword(long id,String replacement,String requestId) {
-        CurrentActor actor=permissions.requireSuperAdmin();
         users.lockAdministration();
+        CurrentActor actor=permissions.requireSuperAdmin();
+        validateLocked(users.lock(actor.id()),actor);
         replacePassword(actor,required(users.lock(id)),replacement,"RESET_PASSWORD",requestId);
     }
     private void replacePassword(CurrentActor actor,UserAccount user,String replacement,String action,String requestId) {
@@ -90,8 +94,9 @@ public class IdentityService {
     }
     @Transactional
     public void setEnabled(long id,boolean enabled,String requestId) {
-        CurrentActor actor=permissions.requireSuperAdmin();
         users.lockAdministration();
+        CurrentActor actor=permissions.requireSuperAdmin();
+        validateLocked(users.lock(actor.id()),actor);
         UserAccount user=required(users.lock(id));
         if(!enabled && actor.id()==id) throw new DomainException(409,"SELF_DISABLE","不能禁用当前账号");
         if(!enabled && user.enabled() && "SUPER_ADMIN".equals(user.role()) && users.activeAdmins()<=1)

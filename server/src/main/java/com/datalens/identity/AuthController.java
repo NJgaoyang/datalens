@@ -22,9 +22,10 @@ public class AuthController {
     private final SecurityContextRepository contexts;
     private final CsrfTokenRepository csrf;
     private final AuditService audit;
+    private final LoginAdmission admission;
     public AuthController(IdentityService identities,PermissionService permissions,SecurityContextRepository contexts,
-            CsrfTokenRepository csrf,AuditService audit) {
-        this.identities=identities;this.permissions=permissions;this.contexts=contexts;this.csrf=csrf;this.audit=audit;
+            CsrfTokenRepository csrf,AuditService audit,LoginAdmission admission) {
+        this.identities=identities;this.permissions=permissions;this.contexts=contexts;this.csrf=csrf;this.audit=audit;this.admission=admission;
     }
     public record LoginInput(@NotBlank @Size(max=64) String username,@NotBlank @Size(max=72) String password) {
         @Override public String toString(){return "LoginInput[REDACTED]";}
@@ -38,7 +39,10 @@ public class AuthController {
     }
     @PostMapping("/login") public ApiResponse<UserView> login(@Valid @RequestBody LoginInput input,
             HttpServletRequest request,HttpServletResponse response) {
-        UserAccount user=identities.authenticate(input.username(),input.password(),RequestIdFilter.id(request));
+        UserAccount user;
+        try(var permit=admission.enter(input.username())) {
+            user=identities.authenticate(input.username(),input.password(),RequestIdFilter.id(request));
+        }
         // Discard anonymous and previously authenticated session state, preventing fixation.
         if(request.getSession(false)!=null) request.getSession(false).invalidate();
         request.getSession(true);

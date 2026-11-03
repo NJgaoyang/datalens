@@ -12,11 +12,11 @@ async function fixtures(page: Page, role: 'USER' | 'SUPER_ADMIN' = 'USER', initi
     if (method !== 'GET') expect(route.request().headers()['x-csrf-token']).toBe(`csrf-${csrfReads}`);
     if (path === '/api/v1/auth/login') { loggedIn = true; return route.fulfill({ json: envelope(current) }); }
     if (path === '/api/v1/auth/logout' || path === '/api/v1/auth/password') { loggedIn = false; return route.fulfill({ json: envelope(null) }); }
+    if (path === '/api/v1/system/info') return route.fulfill({ json: envelope({ name: 'DataLens', version: '0.1.0', stage: 'M01', enabledModules: ['foundation', 'identity'] }) });
     if (!loggedIn) return route.fulfill({ status: 401, json: envelope(null, 'UNAUTHORIZED', '请登录') });
     if (path === '/api/v1/auth/me') return route.fulfill({ json: envelope(current) });
     if (path === '/api/v1/admin/users') return route.fulfill({ json: envelope(method === 'GET' ? { items: [admin, user], total: 2, page: 1, size: 20 } : user) });
     if (path.startsWith('/api/v1/admin/users/')) return route.fulfill({ json: envelope(null) });
-    if (path === '/api/v1/system/info') return route.fulfill({ json: envelope({ name: 'DataLens', version: '0.1.0', stage: 'M01', enabledModules: ['foundation', 'identity'] }) });
     return route.fulfill({ status: 404, json: envelope(null, 'NOT_FOUND') });
   });
   await page.route('**/actuator/health/readiness', route => route.fulfill({ json: { status: 'UP' } }));
@@ -74,6 +74,10 @@ test('password validation and successful change returns to login', async ({ page
   await expect(page.getByText('两次输入的新密码不一致')).toBeVisible();
   await page.getByLabel('确认新密码', { exact: true }).fill('replacement-password');
   await page.getByRole('button', { name: '保存新密码' }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  expect(await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage } }))).toEqual({ local: {}, session: {} });
+  await expect(page.getByLabel('密码', { exact: true })).toHaveValue('');
+  await page.goto('/account/password');
   await expect(page).toHaveURL(/\/login$/);
 });
 
