@@ -1,0 +1,29 @@
+name: Disposable Docker acceptance
+on:
+  push:
+    branches: [main, dev20261103, fix/m00-frontend-lock]
+    paths: ['server/**', 'web/**', 'deploy/**', '.dockerignore', '.github/scripts/compose-smoke.sh', '.github/workflows/compose.yml']
+  pull_request:
+    paths: ['server/**', 'web/**', 'deploy/**', '.dockerignore', '.github/scripts/compose-smoke.sh', '.github/workflows/compose.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: compose-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cold start, same-volume restart, dependency failure and recovery
+        run: bash .github/scripts/compose-smoke.sh
+      - name: Acceptance logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-acceptance
+          path: test-results/compose/
+          if-no-files-found: warn
+          retention-days: 7

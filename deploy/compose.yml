@@ -1,0 +1,49 @@
+# Development and disposable acceptance only. Not a production deployment.
+services:
+  mysql:
+    image: mysql:8.4.13
+    environment:
+      MYSQL_DATABASE: datalens
+      MYSQL_USER: datalens
+      MYSQL_PASSWORD: ${DATALENS_DB_PASSWORD:?Set DATALENS_DB_PASSWORD in deploy/.env}
+      MYSQL_ROOT_PASSWORD: ${DATALENS_MYSQL_ROOT_PASSWORD:?Set DATALENS_MYSQL_ROOT_PASSWORD in deploy/.env}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", 'MYSQL_PWD="$$MYSQL_PASSWORD" mysqladmin ping -h 127.0.0.1 -u "$$MYSQL_USER" --silent']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  redis:
+    image: redis:7.4.12-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  server:
+    build:
+      context: ..
+      dockerfile: deploy/server.Dockerfile
+    environment:
+      DATALENS_BIND_ADDRESS: 0.0.0.0
+      DATALENS_DB_URL: jdbc:mysql://mysql:3306/datalens?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&sslMode=DISABLED&allowPublicKeyRetrieval=true
+      DATALENS_DB_USERNAME: datalens
+      DATALENS_DB_PASSWORD: ${DATALENS_DB_PASSWORD:?Set DATALENS_DB_PASSWORD in deploy/.env}
+      DATALENS_REDIS_HOST: redis
+      DATALENS_REDIS_PORT: 6379
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+    ports:
+      - "127.0.0.1:${DATALENS_WEB_PORT:-8088}:80"
+    depends_on:
+      - server
+volumes:
+  mysql-data:
