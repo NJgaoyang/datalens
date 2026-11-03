@@ -32,3 +32,12 @@ Real StarRocks 3.3.22 TLS, execution/cancellation/timeout/resource limits and re
 ## Initial CI and route correction
 
 Commit bd371b858c42ba83a9201e81729c846d255bcf97 passed frontend (37 unit + 43 Chromium scenarios) and disposable Compose cold-start/restart gates. Backend passed 175 unit tests and 45 existing integration tests, but all 10 new sharing HTTP cases exposed missing explicit management routes in the deny-by-default security chain. Corrected the route allowlist without weakening resource checks or CSRF; ownership transfer additionally requires SUPER_ADMIN at the HTTP boundary. Full CI is rerun on the correction commit.
+
+## Verified final CI
+
+Correction commit `bbab8ce20f683229e820e4c1817f89242d77ec75` passed all three workflows:
+- [Backend](https://github.com/NJgaoyang/datalens/actions/runs/41647134847): 175 unit and 55 MySQL/Redis integration tests.
+- [Frontend](https://github.com/NJgaoyang/datalens/actions/runs/41647134732): 37 unit and 43 Chromium scenarios.
+- [Disposable Compose](https://github.com/NJgaoyang/datalens/actions/runs/41647134686): cold start, migrations, same-volume restart and Redis recovery.
+
+These results close M05 code/CI gates only, not the outstanding real StarRocks gates.

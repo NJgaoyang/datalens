@@ -23,11 +23,17 @@ Chart viewing is separate from management, arbitrary SQL and export. Publication
 
 ## Test and deployment workflow
 
-- server: `mvn -B verify`; full MySQL integration: `mvn -B -Pmysql-it verify` with CI MySQL/Redis configuration.
+- server: `mvn -B verify`; full MySQL integration: `mvn -B -Pintegration verify` with CI MySQL/Redis configuration.
 - web: `npm ci`, `npm test`, `npm run build`, `npm run test:e2e`.
 - CI backend, frontend browser and disposable Compose acceptance must pass on the exact pushed commit.
-- Flyway only adds migrations; V1–V5 remain unchanged and V6 upgrades sharing.
+- Flyway only adds migrations; V1–V6 remain unchanged; V7 adds semantic drafts and immutable releases.
 - Compose smoke checks cold start, authenticated API boundary, same-volume restart and Redis failure/recovery without requiring model or StarRocks configuration.
 - Real StarRocks protocol/TLS, cancellation, timeout, concurrency and business-data freshness gates are tracked separately. Mocks and MySQL integration do not close them.
 
 M05 is not production deployment authorization. No merge/deploy is performed by this implementation.
+
+## M06 semantic boundary
+
+Semantic owns subject-level draft documents and immutable release snapshots. Admin-only review binds the document digest and metadata fingerprint; publication changes a current-release pointer under an optimistic mutation lock. QuerySourceAccess provides current authorization and effective columns without exposing datasource repositories, credentials or pools. The fingerprint includes actual effective metadata, not only source configuration version. Retrieval is publication-only and reauthorizes the caller on every request. M07 must consume the semantic application service and preserve publication evidence, never read drafts or semantic tables directly.
+
+M06 stores reviewed examples but does not execute them. SafeSql and QueryParameters validate definitions through the established query boundary. Relationship cardinality/grain is declared business metadata, not a database uniqueness proof; the initial publication subset therefore rejects JOIN/multi-table SQL rather than accepting uncertain aggregate grain. Real business correctness requires user-provided cases and human review, independent of software test success.

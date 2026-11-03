@@ -52,3 +52,7 @@
 - 查询任务实际操作者始终是查看者；作者仅作为数据策略检查对象，不创建冒充作者的会话或审计。
 - 回收站无公开查看路径，所有者可恢复自己的图表，超管可恢复任意图表。转移仅超管可执行，目标需有效账号且有查询该定义的权限。
 - 导出尚未开放，任何查看或共享不自动获得导出权限。
+
+## M06 semantic authorization
+
+Only active SUPER_ADMIN accounts may create/edit drafts, attest human review, publish, withdraw or inspect release history. Business owner text is descriptive and grants no role. Active users with current subject access may read/search only the current published snapshot; chart sharing does not grant semantic access. Every read rechecks source enabled state, effective allowed-minus-denied columns and their types. Changed scope or metadata invalidates publication until reviewed and republished. Draft updates never silently alter the current immutable publication. No public historical release endpoint or example execution endpoint exists.

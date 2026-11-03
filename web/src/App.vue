@@ -16,6 +16,7 @@ async function signOut() {
 const navigation = [
   { path: '/', label: '工程概览', symbol: '◫' },
   { path: '/subjects', label: '业务主题', symbol: '▦' },
+  { path: '/semantics', label: '业务语义与指标', symbol: '≡' },
   { path: '/queries', label: '安全 SQL 查询', symbol: '⌘' },
   { path: '/ask', label: '智能问数', symbol: '?' },
   { path: '/charts/mine', label: '我的图表', symbol: '▥' },

@@ -9,6 +9,7 @@ import SourcesView from './views/SourcesView.vue';
 import SubjectsView from './views/SubjectsView.vue';
 import QueryView from './views/QueryView.vue';
 const ChartsView = () => import('./views/ChartsView.vue');
+const SemanticsView = () => import('./views/SemanticsView.vue');
 import PlannedModuleView from './views/PlannedModuleView.vue';
 
 export const router = createRouter({
@@ -27,6 +28,7 @@ export const router = createRouter({
     { path: '/charts/:id', component: ChartsView, meta: { title: '图表详情' } },
     { path: '/sources', component: SourcesView, meta: { title: '数据源管理', admin: true } },
     { path: '/queries', component: QueryView, meta: { title: '安全 SQL 查询' } },
+    { path: '/semantics', component: SemanticsView, meta: { title: '业务语义与指标' } },
     { path: '/subjects', component: SubjectsView, meta: { title: '业务主题' } },
     { path: '/settings', component: UsersView, meta: { title: '用户管理', admin: true } },
     { path: '/:pathMatch(.*)*', redirect: '/' },
