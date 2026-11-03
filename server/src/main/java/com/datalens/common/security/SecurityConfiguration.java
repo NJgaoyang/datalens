@@ -41,6 +41,10 @@ public class SecurityConfiguration {
                 .requestMatchers(HttpMethod.POST,"/api/v1/model/proposals").authenticated()
                 .requestMatchers(HttpMethod.GET,"/api/v1/conversations","/api/v1/conversations/*","/api/v1/conversations/*/turns/*","/api/v1/conversations/*/turns/*/result").authenticated()
                 .requestMatchers(HttpMethod.POST,"/api/v1/conversations","/api/v1/conversations/*/turns","/api/v1/conversations/*/turns/*/save").authenticated()
+                .requestMatchers(HttpMethod.POST,"/api/v1/exports").authenticated()
+                .requestMatchers(HttpMethod.GET,"/api/v1/exports/*","/api/v1/exports/*/download","/api/v1/exports/charts/*/permission").authenticated()
+                .requestMatchers(HttpMethod.GET,"/api/v1/exports/charts/*/grants","/api/v1/audit-events").hasRole("SUPER_ADMIN")
+                .requestMatchers(HttpMethod.PUT,"/api/v1/exports/charts/*/grant").hasRole("SUPER_ADMIN")
                 .anyRequest().denyAll());
         http.formLogin(AbstractHttpConfigurer::disable).httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable).requestCache(AbstractHttpConfigurer::disable);

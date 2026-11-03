@@ -12,7 +12,7 @@ async function fixtures(page: Page, admin = true) {
 }
 test('ordinary user cannot navigate to model configuration or request admin API', async ({ page }) => {
   await fixtures(page, false); const paths: string[] = []; page.on('request', req => paths.push(new URL(req.url()).pathname));
-  await page.goto('/model'); await expect(page).toHaveURL(/\/$/);
+  await page.goto('/model'); await expect(page).toHaveURL(/\/workspace$/);
   await expect(page.getByRole('link', { name: '模型配置' })).toHaveCount(0);
   expect(paths).not.toContain('/api/v1/admin/model');
 });
@@ -58,6 +58,7 @@ test('unconfigured defaults remain disabled and navigation clears an unsaved key
   await expect(page.getByRole('switch', { name: '启用模型' })).not.toBeChecked();
   await page.getByLabel('模型 API Key', { exact: true }).fill('fixture-only');
   await page.getByRole('link', { name: '业务主题', exact: true }).click();
+  await expect(page).toHaveURL(/\/subjects$/);
   await page.goBack(); await expect(page.getByLabel('模型 API Key', { exact: true })).toHaveValue('');
 });
 test('failed reload hides stale configuration and cannot submit it', async ({ page }) => {

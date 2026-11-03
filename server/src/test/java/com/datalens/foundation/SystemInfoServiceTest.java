@@ -10,7 +10,7 @@ class SystemInfoServiceTest {
         when(mapper.productName()).thenReturn("DataLens");
         SystemInfo info = new SystemInfoService(mapper, "0.1.0").getInfo();
         assertThat(info.name()).isEqualTo("DataLens");
-        assertThat(info.enabledModules()).containsExactly("foundation", "identity", "datasource", "query", "chart", "semantic", "model", "conversation");
+        assertThat(info.enabledModules()).containsExactly("foundation", "identity", "datasource", "query", "chart", "semantic", "model", "conversation", "workbench", "export");
         verify(mapper).productName();
     }
 

@@ -262,7 +262,7 @@ class ChartSharingIT {
         var chart=share(owner,save(),"SPECIFIC",List.of(viewer.id));String task=refresh(viewer,chart);terminal(task,"SUCCEEDED");
         var input=Map.of("chartId",chart.path("id").asString(),"taskId",task,"idempotencyKey",UUID.randomUUID().toString());
         viewer.denied("POST","/api/v1/exports",input);owner.denied("PUT",exportGrantPath(chart),Map.of("userId",viewer.id,"expectedChartVersion",chart.path("version").asLong(),"enabled",true));
-        exportGrant(chart,true);String id=exportReady(chart,task),url="/api/v1/exports/"+id+"/download";
+        exportGrant(chart,true);viewer.denied("GET","/api/v1/audit-events",null);assertThat(admin.ok("GET","/api/v1/audit-events?page=1&size=20",null).path("total").asLong()).isGreaterThan(0);String id=exportReady(chart,task),url="/api/v1/exports/"+id+"/download";
         var response=viewer.send("GET",url,null,true);assertThat(response.statusCode()).isEqualTo(200);assertThat(response.body()).contains(EXACT);assertThat(response.headers().firstValue("Cache-Control").orElse("")).contains("no-store");assertThat(response.headers().firstValue("Content-Disposition").orElse("")).contains("attachment");
         other.denied("GET",url,null);assertThat(new Browser(0).send("GET",url,null,false).statusCode()).isEqualTo(401);
         exportGrant(chart,false);viewer.denied("GET",url,null);exportGrant(chart,true);viewer.denied("GET",url,null);

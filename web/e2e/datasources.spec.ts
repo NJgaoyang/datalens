@@ -26,7 +26,7 @@ test('ordinary users see filtered fields without source connection or ACL contro
   await page.getByRole('button', { name: '查看可用字段' }).click();
   await expect(page.getByRole('cell', { name: 'total', exact: true })).toBeVisible();
   expect(paths.filter(path => path.startsWith('/api/v1/admin/'))).toEqual([]);
-  await page.goto('/sources'); await expect(page).toHaveURL(/\/$/);
+  await page.goto('/sources'); await expect(page).toHaveURL(/\/workspace$/);
 });
 test('admin edits source, retains password by blank update, cancel clears secrets', async ({ page }) => {
   await fixtures(page, true); await page.goto('/sources');
