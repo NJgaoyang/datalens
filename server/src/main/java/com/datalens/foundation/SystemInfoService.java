@@ -19,6 +19,7 @@ public class SystemInfoService {
         if (name == null || name.isBlank()) {
             throw new IllegalStateException("Foundation migration is incomplete");
         }
-        return new SystemInfo(name, version, "M00", List.of("foundation"));
+        return new SystemInfo(name, version, "M01", List.of("foundation", "identity"));
     }
 }
+

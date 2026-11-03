@@ -32,6 +32,10 @@ services:
       DATALENS_DB_PASSWORD: ${DATALENS_DB_PASSWORD:?Set DATALENS_DB_PASSWORD in deploy/.env}
       DATALENS_REDIS_HOST: redis
       DATALENS_REDIS_PORT: 6379
+      # Localhost-only HTTP development; production TLS must keep secure=true.
+      DATALENS_COOKIE_SECURE: ${DATALENS_COOKIE_SECURE:-false}
+      DATALENS_BOOTSTRAP_USERNAME: ${DATALENS_BOOTSTRAP_USERNAME:-}
+      DATALENS_BOOTSTRAP_PASSWORD: ${DATALENS_BOOTSTRAP_PASSWORD:-}
     depends_on:
       mysql:
         condition: service_healthy

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getApi } from './http';
+import { clearCsrf, getApi, requestApi, setUnauthorizedHandler } from './http';
 import { loadSystemInfo } from './system';
 
 const envelope = { code: 'OK', message: '成功', data: { name: 'DataLens', version: '0.1.0', stage: 'M00', enabledModules: ['foundation'] }, requestId: 'test-id', timestamp: '2026-11-03T00:00:00Z' };
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { clearCsrf(); setUnauthorizedHandler(() => {}); vi.unstubAllGlobals(); });
 
 describe('API contracts', () => {
   it('reads real envelope shape and uses same-origin credentials', async () => {
@@ -33,5 +33,35 @@ describe('API contracts', () => {
     vi.stubGlobal('fetch', mock);
     await expect(getApi('https://example.com/api/v1/data')).rejects.toMatchObject({ code: 'INVALID_PATH' });
     expect(mock).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('session security', () => {
+  it('fetches CSRF and sends header even for login', async () => {
+    const mock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...envelope, data: { token: 'csrf-test', headerName: 'X-CSRF-TOKEN' } })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...envelope, data: null })));
+    vi.stubGlobal('fetch', mock);
+    await requestApi('/api/v1/auth/login', 'POST', { username: 'alice', password: 'not-a-real-password' });
+    expect(mock).toHaveBeenNthCalledWith(1, '/api/v1/auth/csrf', expect.objectContaining({ method: 'GET', credentials: 'same-origin' }));
+    expect(mock).toHaveBeenNthCalledWith(2, '/api/v1/auth/login', expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ 'X-CSRF-TOKEN': 'csrf-test', 'Content-Type': 'application/json' }) }));
+  });
+  it('invalidates expired sessions but does not redirect for invalid login', async () => {
+    const handler = vi.fn(); setUnauthorizedHandler(handler);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ ...envelope, code: 'UNAUTHORIZED' }), { status: 401 })));
+    await expect(getApi('/api/v1/admin/users')).rejects.toMatchObject({ status: 401 });
+    expect(handler).toHaveBeenCalledOnce();
+    handler.mockClear();
+    await expect(getApi('/api/v1/auth/login')).rejects.toMatchObject({ status: 401 });
+    expect(handler).not.toHaveBeenCalled();
+  });
+  it('never retries a failed mutation automatically', async () => {
+    const mock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...envelope, data: { token: 'csrf-test', headerName: 'X-CSRF-TOKEN' } })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...envelope, code: 'FORBIDDEN', data: null }), { status: 403 }));
+    vi.stubGlobal('fetch', mock);
+    await expect(requestApi('/api/v1/admin/users', 'POST', {})).rejects.toMatchObject({ status: 403 });
+    expect(mock).toHaveBeenCalledTimes(2);
   });
 });

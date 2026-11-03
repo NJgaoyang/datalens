@@ -35,6 +35,18 @@ public class ApiExceptionHandler {
         return error(HttpStatus.SERVICE_UNAVAILABLE, "DEPENDENCY_UNAVAILABLE", "依赖服务暂不可用", request);
     }
 
+    @ExceptionHandler(DomainException.class)
+    public ResponseEntity<ApiResponse<Void>> domainError(DomainException exception, HttpServletRequest request) {
+        return ResponseEntity.status(exception.status()).body(ApiResponse.error(exception.code(), exception.getMessage(), RequestIdFilter.id(request)));
+    }
+    @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
+    public ResponseEntity<ApiResponse<Void>> unauthenticated(Exception exception, HttpServletRequest request) {
+        return error(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "请重新登录", request);
+    }
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> forbidden(Exception exception, HttpServletRequest request) {
+        return error(HttpStatus.FORBIDDEN, "FORBIDDEN", "无权执行此操作", request);
+    }
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> internalError(Exception exception, HttpServletRequest request) {
         // Do not leak JDBC URLs, raw SQL, request bodies, or exception messages to clients/logs.
@@ -47,3 +59,4 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(status).body(ApiResponse.error(code, message, RequestIdFilter.id(request)));
     }
 }
+

@@ -45,11 +45,11 @@ snapshot() {
 wait_for_api
 curl --fail --silent --max-time 5 http://127.0.0.1:8088/ > test-results/compose/index.html
 grep -q 'id="app"' test-results/compose/index.html
-curl --fail --silent --max-time 5 http://127.0.0.1:8088/api/v1/system/info | jq --exit-status '.data.name == "DataLens" and .data.stage == "M00"' >/dev/null
+curl --fail --silent --max-time 5 http://127.0.0.1:8088/api/v1/system/info | jq --exit-status '.data.name == "DataLens" and .data.stage == "M01"' >/dev/null
 [[ $(curl --silent --max-time 5 -o test-results/compose/denied.json -w '%{http_code}' http://127.0.0.1:8088/api/v1/charts) == 401 ]]
 jq --exit-status '.code == "UNAUTHENTICATED"' test-results/compose/denied.json >/dev/null
-[[ $(query 'SELECT COUNT(*) FROM sys_platform_setting;') == 1 ]]
-[[ $(query 'SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1;') == 1 ]]
+[[ $(query 'SELECT COUNT(*) FROM sys_platform_setting;') == 2 ]]
+[[ $(query 'SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1;') == 2 ]]
 query "INSERT INTO sys_platform_setting (setting_key, setting_value) VALUES ('ci.restart.probe', 'persisted');"
 snapshot > test-results/compose/before.txt
 # Recreate ALL containers while retaining this project's MySQL volume.

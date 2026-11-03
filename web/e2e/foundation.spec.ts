@@ -1,5 +1,9 @@
 import { expect, test } from '@playwright/test';
 
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/v1/auth/me', route => route.fulfill({ json: { code: 'OK', message: '成功', data: { id: 1, username: 'admin', role: 'SUPER_ADMIN', enabled: true }, requestId: 'ui-fixture' } }));
+});
+
 test('foundation shell explains scope and reads status', async ({ page }) => {
   // UI-contract fixtures only; backend integration tests use real MySQL and Redis.
   await page.route('**/api/v1/system/info', (route) => route.fulfill({ json: {
@@ -24,3 +28,4 @@ test('backend failure is visible and never replaced by mock success', async ({ p
   await expect(page.getByText('未连接', { exact: true })).toBeVisible();
   await expect(page.getByText('已连接', { exact: true })).toHaveCount(0);
 });
+

@@ -47,7 +47,7 @@ const stages = [
 <template>
   <section class="page">
     <div class="page-heading">
-      <div><div class="eyebrow">DATALENS / FOUNDATION</div><h1>从可靠的基础开始</h1><p class="subtitle">独立智能问数与动态图表平台。当前仅交付工程基础，不展示模拟业务数据。</p></div>
+      <div><div class="eyebrow">DATALENS / FOUNDATION</div><h1>从可靠的基础开始</h1><p class="subtitle">独立智能问数与动态图表平台。当前已交付工程基础与账号权限，不展示模拟业务数据。</p></div>
       <el-button :loading="loading" @click="reload">刷新连接状态</el-button>
     </div>
 
@@ -70,9 +70,10 @@ const stages = [
       <section class="panel principles"><div class="panel-heading"><h2>已经确定的边界</h2></div>
         <h3>数据更新，口径不漂移</h3><p>保存查询版本和图表规格；打开时重新取数，不重复让模型决定计算方式。</p>
         <h3>共享图表，不共享数据库</h3><p>私有、指定用户、全员共享；每次读取、刷新、导出都由服务端鉴权。</p>
-        <h3>先有权限，再有智能</h3><p>默认拒绝未开放的接口。账号模块尚未交付，因此没有临时账号或默认密码。</p>
+        <h3>先有权限，再有智能</h3><p>默认拒绝未开放的接口。使用服务端会话认证与超管授权；没有默认密码或自行注册入口。</p>
       </section>
     </div>
-    <p class="scope-note">当前范围：M00 工程骨架。导航中的业务页面展示交付范围，不代表相关功能已经实现。</p>
+    <p class="scope-note">当前范围：M00 工程骨架与 M01 身份权限。导航中的业务页面展示交付范围，不代表相关功能已经实现。</p>
   </section>
 </template>
+

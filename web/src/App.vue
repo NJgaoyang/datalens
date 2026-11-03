@@ -1,6 +1,18 @@
 <script setup lang="ts">
-import { useRoute } from 'vue-router';
+import { ref } from 'vue';
+import { ElMessage } from 'element-plus';
+import { session, logout } from './api/auth';
+import { errorMessage } from './api/http';
+import { useRouter, useRoute } from 'vue-router';
 const route = useRoute();
+const router = useRouter(); const busy = ref(false);
+async function signOut() {
+  if (busy.value) return;
+  busy.value = true;
+  try { await logout(); await router.replace('/login'); }
+  catch (error) { ElMessage.error(errorMessage(error)); if (!session.user) await router.replace('/login'); }
+  finally { busy.value = false; }
+}
 const navigation = [
   { path: '/', label: '工程概览', symbol: '◫' },
   { path: '/ask', label: '智能问数', symbol: '?' },
@@ -11,7 +23,8 @@ const navigation = [
 </script>
 
 <template>
-  <div class="app-shell">
+  <RouterView v-if="route.meta.public" />
+  <div v-else-if="session.user || route.meta.anonymous" class="app-shell">
     <aside class="sidebar" aria-label="主导航">
       <RouterLink class="brand" to="/" aria-label="DataLens 首页">
         <span class="brand-mark">D</span><strong>DataLens</strong>
@@ -23,16 +36,17 @@ const navigation = [
         </RouterLink>
       </nav>
       <div class="sidebar-bottom">
-        <RouterLink to="/settings" class="nav-item" :class="{ active: route.path === '/settings' }"><span class="nav-symbol" aria-hidden="true">⚙</span>系统管理</RouterLink>
+        <RouterLink v-if="session.user?.role === 'SUPER_ADMIN'" to="/settings" class="nav-item" :class="{ active: route.path === '/settings' }"><span class="nav-symbol" aria-hidden="true">⚙</span>用户管理</RouterLink>
         <p>独立部署 · 只读分析</p>
       </div>
     </aside>
     <div class="workspace">
       <header class="topbar">
         <span>{{ route.meta.title }}</span>
-        <span class="stage-label">M00 · 工程基础</span>
+        <div v-if="session.user" class="account-actions"><span>{{ session.user.username }}</span><RouterLink to="/account/password">修改密码</RouterLink><el-button size="small" :loading="busy" @click="signOut">退出登录</el-button></div><RouterLink v-else to="/login">登录</RouterLink>
       </header>
       <main id="main-content"><RouterView /></main>
     </div>
   </div>
 </template>
+

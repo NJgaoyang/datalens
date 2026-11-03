@@ -1,42 +1,43 @@
 package com.datalens.common.security;
-
 import com.datalens.common.web.ApiErrorWriter;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import com.datalens.identity.SessionValidityFilter;
+import com.datalens.permission.PermissionService;
+import org.springframework.context.annotation.*;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.core.userdetails.*;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-
+import org.springframework.security.web.context.*;
+import org.springframework.security.web.csrf.*;
 @Configuration
 public class SecurityConfiguration {
-    @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, ApiErrorWriter errors) throws Exception {
+    @Bean SecurityContextRepository securityContexts() {return new HttpSessionSecurityContextRepository();}
+    @Bean CsrfTokenRepository csrfTokens() {return new HttpSessionCsrfTokenRepository();}
+    @Bean PasswordEncoder passwords() {return new BCryptPasswordEncoder(12);}
+    @Bean SecurityFilterChain securityFilterChain(HttpSecurity http,ApiErrorWriter errors,PermissionService permissions,
+            SecurityContextRepository contexts,CsrfTokenRepository csrf) throws Exception {
         http.authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.GET, "/api/v1/system/info",
-                        "/actuator/health/liveness", "/actuator/health/readiness").permitAll()
+                .requestMatchers(HttpMethod.GET,"/api/v1/system/info","/actuator/health/liveness","/actuator/health/readiness","/api/v1/auth/csrf").permitAll()
+                .requestMatchers(HttpMethod.POST,"/api/v1/auth/login").permitAll()
+                .requestMatchers("/api/v1/auth/me","/api/v1/auth/logout","/api/v1/auth/password").authenticated()
+                .requestMatchers("/api/v1/admin/users","/api/v1/admin/users/*/enabled","/api/v1/admin/users/*/password").hasRole("SUPER_ADMIN")
                 .anyRequest().denyAll());
-        http.formLogin(AbstractHttpConfigurer::disable)
-                .httpBasic(AbstractHttpConfigurer::disable)
-                .logout(AbstractHttpConfigurer::disable)
-                .requestCache(AbstractHttpConfigurer::disable);
-        // CSRF stays enabled. M01 will introduce real accounts and secure server-side sessions.
+        http.formLogin(AbstractHttpConfigurer::disable).httpBasic(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable).requestCache(AbstractHttpConfigurer::disable);
+        http.securityContext(context -> context.securityContextRepository(contexts).requireExplicitSave(true));
+        http.csrf(config -> config.csrfTokenRepository(csrf));
+        http.addFilterAfter(new SessionValidityFilter(permissions,errors),SecurityContextHolderFilter.class);
         http.exceptionHandling(ex -> ex
-                .authenticationEntryPoint((request, response, cause) -> errors.write(request, response,
-                        401, "UNAUTHENTICATED", "请先登录；当前 M00 尚未启用账号模块"))
-                .accessDeniedHandler((request, response, cause) -> errors.write(request, response,
-                        403, "FORBIDDEN", "无权执行此操作")));
-        http.headers(headers -> headers
-                .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'none'; frame-ancestors 'none'"))
+                .authenticationEntryPoint((request,response,cause) -> errors.write(request,response,401,"UNAUTHENTICATED","请先登录"))
+                .accessDeniedHandler((request,response,cause) -> errors.write(request,response,403,"FORBIDDEN","无权执行此操作或 CSRF 验证失败")));
+        http.headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'none'; frame-ancestors 'none'"))
                 .frameOptions(frame -> frame.deny()));
         return http.build();
     }
-
-    @Bean
-    UserDetailsService unavailableIdentityProvider() {
-        // Prevent Spring Boot from generating a usable default account/password in M00.
-        return username -> { throw new UsernameNotFoundException("Identity is not implemented in M00"); };
+    @Bean UserDetailsService disabledDefaultProvider() {
+        return username -> {throw new UsernameNotFoundException("Use the session login endpoint");};
     }
 }
