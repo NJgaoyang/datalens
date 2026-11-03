@@ -19,9 +19,14 @@ public class QueryStore {
             this(view,actorId,authVersion,sourceId,sourceVersion,requestHash,resultJson,sql,parametersJson,null);
         }
     }
-    private final JdbcTemplate db;private final TransactionTemplate tx;private final AuditService audit;
+    private final JdbcTemplate db;private final TransactionTemplate tx;private final AuditService audit;private final QueryCapacity capacity;
     public QueryStore(JdbcTemplate db,PlatformTransactionManager manager,AuditService audit) {
-        this.db=db;this.tx=new TransactionTemplate(manager);this.audit=audit;
+        this(db,manager,audit,QueryCapacity.defaults());
+    }
+    @org.springframework.beans.factory.annotation.Autowired
+    public QueryStore(JdbcTemplate db,PlatformTransactionManager manager,AuditService audit,QueryCapacity capacity) {
+        this.db=db;this.tx=new TransactionTemplate(manager);this.audit=audit;this.capacity=capacity;
+        this.tx.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_READ_COMMITTED);
     }
     public Stored get(String id) {
         var rows=db.query("SELECT * FROM query_task WHERE id=?",(r,n)->{
@@ -47,6 +52,10 @@ public class QueryStore {
                 if(!hash.equals(previous.requestHash()) || !Objects.equals(context,previous.context())) throw new DomainException(409,"IDEMPOTENCY_CONFLICT","重复提交键已用于不同查询");
                 return previous;
             }
+            // Only fresh admission consumes capacity. Keep durable replay and all terminal operations available.
+            if(count("SELECT COUNT(*) FROM (SELECT id FROM query_task LIMIT ?) capacity_rows",capacity.total())>=capacity.total() ||
+               count("SELECT COUNT(*) FROM (SELECT id FROM query_task WHERE actor_id=? LIMIT ?) capacity_rows",actor.id(),capacity.perActor())>=capacity.perActor())
+                throw new DomainException(429,"QUERY_HISTORY_CAPACITY","查询历史容量已达上限，请联系管理员调整容量");
             // Unknown database termination quarantines this source until an operator verifies and resolves it.
             if(count("SELECT COUNT(*) FROM query_task WHERE source_id=? AND status IN ('CANCEL_UNCONFIRMED','RECOVERY_UNCONFIRMED')",sourceId)>0)
                 throw new DomainException(409,"SOURCE_QUERY_QUARANTINED","数据源存在未确认终止的查询，需要管理员检查");

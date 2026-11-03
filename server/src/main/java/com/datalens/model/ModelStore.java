@@ -13,14 +13,22 @@ public class ModelStore {
     public record Stored(String settings,String encryptedKey) {
         @Override public String toString(){return "Stored[REDACTED]";}
     }
-    private final JdbcTemplate db;
-    public ModelStore(JdbcTemplate db){this.db=db;}
+    private final JdbcTemplate db;private final ModelCapacity capacity;
+    public ModelStore(JdbcTemplate db){this(db,ModelCapacity.defaults());}
+    @org.springframework.beans.factory.annotation.Autowired
+    public ModelStore(JdbcTemplate db,ModelCapacity capacity){this.db=db;this.capacity=capacity;}
     public void lock(){db.queryForObject("SELECT setting_value FROM sys_platform_setting WHERE setting_key='model.lock' FOR UPDATE",String.class);}
     public Stored read(){var rows=db.query("SELECT settings_json,encrypted_key FROM model_configuration WHERE id=1",(r,n)->new Stored(r.getString(1),r.getString(2)));return rows.isEmpty()?null:rows.getFirst();}
     public void save(String settings,String encryptedKey){db.update("INSERT INTO model_configuration(id,settings_json,encrypted_key) VALUES(1,?,?) ON DUPLICATE KEY UPDATE settings_json=?,encrypted_key=?",settings,encryptedKey,settings,encryptedKey);}
     /** Conservative UTF-8 byte + output-token reservation, never refunded on ambiguous provider outcome. */
-    @Transactional(propagation=Propagation.REQUIRES_NEW)
+    @Transactional(propagation=Propagation.REQUIRES_NEW,isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void reserve(String id,long actor,String subject,long configVersion,long semanticVersion,String digest,long tokens,long budget){
+        // Gateway calls reserve without an outer transaction. Order: model.lock, then today's budget.
+        // No admission check or module lock is added to finish, including after configuration disable.
+        lock();
+        if(java.util.Objects.requireNonNull(db.queryForObject("SELECT COUNT(*) FROM (SELECT id FROM model_call LIMIT ?) capacity_rows",Long.class,capacity.total()))>=capacity.total() ||
+           java.util.Objects.requireNonNull(db.queryForObject("SELECT COUNT(*) FROM (SELECT id FROM model_call WHERE actor_id=? LIMIT ?) capacity_rows",Long.class,actor,capacity.perActor()))>=capacity.perActor())
+            throw new DomainException(429,"MODEL_HISTORY_CAPACITY","模型调用历史容量已达上限，请联系管理员调整容量");
         String date=LocalDate.now(ZoneOffset.UTC).toString();
         // Duplicate-key no-op UPDATE takes an exclusive row lock immediately. INSERT IGNORE
         // can leave competing shared locks and deadlock when both reservations upgrade to UPDATE.

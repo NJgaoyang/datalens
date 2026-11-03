@@ -2,7 +2,7 @@
 
 All routes require a current authenticated account and standard CSRF protection for writes. Responses use the normal API envelope, except the authenticated CSV download. No anonymous bearer URL or filesystem/static download path exists.
 
-- `GET /api/v1/charts?scope=mine|shared|all|admin|trash&search=<literal>&page=1&size=20`: case-insensitive literal name search, max 100 characters. Current chart/owner/source/semantic permissions filter metadata before counts and pagination and again at delivery. No chart SQL is executed by listing/search. Trash remains management-only.
+- `GET /api/v1/charts?scope=mine|shared|all|admin|trash&search=<literal>&page=1&size=20`: case-insensitive literal name search, max 100 characters. Current chart/owner/source/semantic permissions filter metadata before counts and pagination and again at delivery. No chart SQL is executed by listing/search. Trash remains management-only. M10 allows two concurrent list/search scans per application instance; admission contention returns generic HTTP 503 `CHART_LIST_BUSY`, never partial rows/counts. See [chart contract](charts.md#m10-listsearch-concurrency-admission).
 - `GET /api/v1/exports/charts/{chartId}/permission`: `{allowed}`; independent export grant, including owner and superadmin.
 - `GET /api/v1/exports/charts/{chartId}/grants`: superadmin-only array `{userId,enabled}` for current chart version.
 - `PUT /api/v1/exports/charts/{chartId}/grant`: superadmin-only `{userId,expectedChartVersion,enabled}`. Enabling checks recipient active account and current view/data permission. Revocation remains possible if source policy is unavailable. Each mutation increments grant generation. Chart version changes invalidate grants until explicitly reissued.

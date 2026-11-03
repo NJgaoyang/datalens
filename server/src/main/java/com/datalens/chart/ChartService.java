@@ -14,6 +14,7 @@ import static com.datalens.chart.ChartModels.*;
 
 @Service
 public class ChartService {
+    private final java.util.concurrent.Semaphore listSlots=new java.util.concurrent.Semaphore(2,true);
     @org.springframework.beans.factory.annotation.Autowired private ChartSemanticAuthorization semantic;
     private final ChartStore store;private final QueryService queries;private final PermissionService permissions;private final ObjectMapper json;
     private final Clock clock;private final ChartPermissionService charts;
@@ -39,17 +40,20 @@ public class ChartService {
     public Summary publish(String id,Publish input,String requestId){owned(id);var p=ownPreview(input.previewId());previewResult(p.id());return store.publish(permissions.current(),id,p,input.name().trim(),input.expectedVersion(),requestId,()->{ownPreview(p.id());previewResult(p.id());charts.publication(permissions.current(),id,definition(p.definition()));});}
     public PageResult<Summary> list(String scope,int page,int size){return list(scope,page,size,"");}
     public PageResult<Summary> list(String scope,int page,int size,String search){
-        if(search==null)search="";if(search.length()>100)throw ChartRules.invalid("搜索词最长100字符");final String needle=search.strip().toLowerCase(java.util.Locale.ROOT);
-        var actor=permissions.current();if("trash".equals(scope)&&needle.isEmpty())return store.list(actor,scope,page,size);
-        var visible=new ArrayList<Summary>();int batch=1;PageResult<Summary> rows;
-        do{rows=store.list(actor,scope,batch++,200);for(var c:rows.items()){
-            if(!c.name().toLowerCase(java.util.Locale.ROOT).contains(needle))continue;
-            try{if("trash".equals(scope)){charts.manage(actor,c.id(),true);visible.add(c);continue;}charts.executionOwner(actor,c.id(),c.revisionId());visible.add(c);}
-            catch(AccessDeniedException|com.datalens.common.web.DomainException denied){/* Exclude revoked semantic assets before counts and pagination. */}
-        }}while((long)(batch-1)*200<rows.total());
-        // Final delivery recheck, including metadata loaded in earlier pages.
-        visible.removeIf(c->{try{var current="trash".equals(scope)?charts.manage(actor,c.id(),true):charts.view(actor,c.id());if(!current.revisionId().equals(c.revisionId())||current.ownerId()!=c.ownerId()||current.version()!=c.version())return true;if(!"trash".equals(scope))charts.executionOwner(actor,c.id(),c.revisionId());return false;}catch(AccessDeniedException|com.datalens.common.web.DomainException denied){return true;}});
-        permissions.current();int from=(int)Math.min((long)(page-1)*size,visible.size()),to=Math.min(from+size,visible.size());return new PageResult<>(visible.subList(from,to),visible.size(),page,size);
+        var actor=permissions.current();store.validateListScope(actor,scope);
+        if(!listSlots.tryAcquire())throw new com.datalens.common.web.DomainException(503,"CHART_LIST_BUSY","图表列表服务繁忙，请稍后重试");
+        try {
+            if(search==null)search="";if(search.length()>100)throw ChartRules.invalid("搜索词最长100字符");final String needle=search.strip().toLowerCase(java.util.Locale.ROOT);
+            var visible=new ArrayList<Summary>();int batch=1;PageResult<Summary> rows;
+            do{rows=store.list(actor,scope,batch++,200);for(var c:rows.items()){
+                if(!c.name().toLowerCase(java.util.Locale.ROOT).contains(needle))continue;
+                try{if("trash".equals(scope)){charts.manage(actor,c.id(),true);visible.add(c);continue;}charts.executionOwner(actor,c.id(),c.revisionId());visible.add(c);}
+                catch(AccessDeniedException|com.datalens.common.web.DomainException denied){/* Exclude revoked assets before counts and pagination. */}
+            }}while((long)(batch-1)*200<rows.total());
+            // Final delivery recheck, including metadata loaded in earlier pages.
+            visible.removeIf(c->{try{var current="trash".equals(scope)?charts.manage(actor,c.id(),true):charts.view(actor,c.id());if(!current.revisionId().equals(c.revisionId())||current.ownerId()!=c.ownerId()||current.version()!=c.version())return true;if(!"trash".equals(scope))charts.executionOwner(actor,c.id(),c.revisionId());return false;}catch(AccessDeniedException|com.datalens.common.web.DomainException denied){return true;}});
+            permissions.current();int from=(int)Math.min((long)(page-1)*size,visible.size()),to=Math.min(from+size,visible.size());return new PageResult<>(visible.subList(from,to),visible.size(),page,size);
+        } finally {listSlots.release();}
     }
     public Detail detail(String id){var c=viewed(id);var actor=permissions.current();var d=definition(store.definition(id,c.revisionId()));boolean manage=charts.canManage(actor,c);if(!manage||d.semanticBinding()!=null)charts.executionOwner(actor,id,c.revisionId());
         if(!manage)d=new Definition("","",List.of(),d.timeRule(),d.metricDescription(),d.spec());

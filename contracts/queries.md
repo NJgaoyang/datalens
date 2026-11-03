@@ -14,3 +14,7 @@ Result: `{columns:[{name,jdbcType}],rows:(string|null)[][],truncated,rowLimit}`.
 Server-controlled boundaries:4 worker threads;2 outstanding tasks/user;3/source;32 globally. Queued tasks count toward admission.10-second JDBC/server query timeout; cancellation grace3 seconds. Pool acquisition and setup have separate bounds. The2MB cap is output storage/response size, not a hard driver heap bound; a driver may buffer larger intermediate values. No runtime configuration weakens TLS or accepts arbitrary JDBC URLs.
 
 SQL subset and rejection list: `docs/m03-sql-subset.md`. No raw input SQL is executed; a fail-closed AST compiler emits approved syntax and JDBC binds values.
+
+## M10 non-destructive capacity guard
+
+New task admission can return HTTP 429 QUERY_HISTORY_CAPACITY when configured global/actor durable-history capacity is reached. Matching idempotent replay and authorized existing reads/cancel/recovery/terminal transitions remain available; no task is deleted or budget automatically reset. Variable text result values use bounded character-stream materialization; exact fixed scalar values retain their string contract. Real JDBC buffering remains a separate acceptance gate. See `docs/M10-capacity-hardening.md` and `docs/M10-capacity-query-model.md` for configuration and residual storage limits.

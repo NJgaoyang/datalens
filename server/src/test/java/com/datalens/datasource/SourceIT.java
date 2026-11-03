@@ -72,7 +72,7 @@ class SourceIT {
         when(pools.open(any())).thenReturn(connection);when(connection.createStatement()).thenReturn(setup);
         when(connection.prepareStatement(anyString())).thenReturn(statement);when(statement.executeQuery()).thenReturn(rows);
         when(rows.getMetaData()).thenReturn(metadata);when(metadata.getColumnCount()).thenReturn(1);
-        when(metadata.getColumnLabel(1)).thenReturn("id");when(metadata.getColumnTypeName(1)).thenReturn("BIGINT");
+        when(metadata.getColumnLabel(1)).thenReturn("id");when(metadata.getColumnTypeName(1)).thenReturn("BIGINT");when(metadata.getColumnType(1)).thenReturn(java.sql.Types.BIGINT);
         when(rows.next()).thenReturn(true,false);when(rows.getString(1)).thenReturn("9007199254740993");
         var body=Map.of("subjectId",subjectId,"sql","SELECT id FROM orders WHERE id > ?","parameters",List.of(Map.of("type","INTEGER","value","2")),"idempotencyKey",UUID.randomUUID().toString());
         assertThat(user.send("POST","/api/v1/query-tasks",body,false).statusCode()).isEqualTo(403);
@@ -109,7 +109,7 @@ class SourceIT {
         when(pools.open(any())).thenReturn(connection);when(connection.createStatement()).thenReturn(setup);
         when(connection.prepareStatement(anyString())).thenReturn(statement);
         when(metadata.getColumnCount()).thenReturn(1);when(metadata.getColumnLabel(1)).thenReturn("id");
-        when(metadata.getColumnTypeName(1)).thenReturn("BIGINT");
+        when(metadata.getColumnTypeName(1)).thenReturn("BIGINT");when(metadata.getColumnType(1)).thenReturn(java.sql.Types.BIGINT);
         when(statement.executeQuery()).thenAnswer(inv->{
             var rows=mock(ResultSet.class);when(rows.getMetaData()).thenReturn(metadata);
             when(rows.next()).thenReturn(true,false);when(rows.getString(1)).thenReturn("9007199254740993");return rows;

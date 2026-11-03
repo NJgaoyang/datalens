@@ -141,7 +141,7 @@ class ConversationIT {
         when(rows.getMetaData()).thenReturn(metadata);
         when(metadata.getColumnCount()).thenReturn(1);
         when(metadata.getColumnLabel(1)).thenReturn("sales");
-        when(metadata.getColumnTypeName(1)).thenReturn("DECIMAL");
+        when(metadata.getColumnTypeName(1)).thenReturn("DECIMAL");when(metadata.getColumnType(1)).thenReturn(java.sql.Types.DECIMAL);when(metadata.getPrecision(1)).thenReturn(38);when(metadata.getScale(1)).thenReturn(4);
         when(rows.next()).thenReturn(analyticsHasRows, false);
         when(rows.getString(1)).thenReturn("9007199254740993.125");
         return connection;

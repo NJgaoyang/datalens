@@ -25,3 +25,7 @@ Spring AI BeanOutputConverter supplies JSON Schema using a strict Jackson mapper
 Safe failures include MODEL_NOT_CONFIGURED, MODEL_CONFIG_CONFLICT, MODEL_CONFIG_CHANGED, MODEL_ENDPOINT_DENIED, MODEL_INPUT_TOO_LARGE, MODEL_NO_PUBLIC_METRICS, MODEL_BUSY, MODEL_BUDGET_EXCEEDED, MODEL_TIMEOUT, MODEL_RATE_LIMITED, MODEL_PROVIDER_FAILED, MODEL_OUTPUT_INVALID, MODEL_SEMANTIC_CHANGED. Authentication and authorization failures retain their usual 401/403 envelopes. Provider error bodies are never returned.
 
 Daily budget is a conservative token reservation, **not a currency guarantee**: UTF-8 prompt bytes plus repair margin and requested output cap, multiplied by all possible attempts, reserved atomically in MySQL UTC day before transmission. Unused repairs, missing usage and ambiguous timeouts are not refunded. Restart or settings changes cannot reset that day's spending; stale RUNNING call rows retain their reservation and indicate an uncertain outcome. Two concurrent calls per application process, zero request queue. Query execution remains separately bounded by M03.
+
+## M10 non-destructive capacity guard
+
+Before a fresh provider reservation, bounded global/actor model history admission can return HTTP 429 MODEL_HISTORY_CAPACITY. Rejection precedes daily token-budget mutation and transport; already-reserved calls may still finish. No call/budget record is deleted or reservation refunded by this guard. See `docs/M10-capacity-hardening.md` and `docs/M10-capacity-query-model.md` for configuration and residual storage limits.

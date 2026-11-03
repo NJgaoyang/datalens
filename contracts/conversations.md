@@ -19,3 +19,7 @@ A model can choose one unchanged reviewed PUBLIC metric or ask for clarification
 Definitions carry optional semanticBinding `{publicationVersion,digest,scopeFingerprint,metricId}`. Semantic-bound definitions must match current eligible publication, unchanged reviewed SQL/base parameters, centrally generated business description and NONE or the exact approved LAST_MONTH rule. Preview, query dispatch/persistence/delivery, explicit save, publication, sharing/transfer/restore and saved refresh recheck it. Republishing cannot silently remove provenance. Shared execution uses the chart owner's permitted source scope under M05, not the viewer's arbitrary query rights. Saved refresh has no model dependency, but semantic withdrawal/republication invalidates old provenance until re-previewed.
 
 No real provider/StarRocks compatibility or business-result correctness is implied by synthetic tests. Real data/provider setup remains separate and authorized.
+
+## M10 non-destructive capacity guard
+
+New conversation creation can return HTTP 429 CONVERSATION_HISTORY_CAPACITY. Existing matching creation replay, ownership checks, existing conversations and their bounded turns remain available. No conversation/history is deleted automatically. See `docs/M10-capacity-hardening.md` and `docs/M10-capacity-query-model.md` for configuration and residual storage limits.

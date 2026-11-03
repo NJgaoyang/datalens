@@ -13,8 +13,10 @@ public class ConversationStore {
  public record Row(String id,long ownerId,String subjectId,String title,long version) {Summary summary(){return new Summary(id,subjectId,title,version);}}
  public record Stored(String id,String conversationId,long sequence,String question,String status,String clarification,String definition,String modelCallId,String previewId,String taskId,String chartId,String errorCode,Instant createdAt){}
  public record Admission(Stored turn,boolean fresh){}
- private final JdbcTemplate db;private final TransactionTemplate tx;
- public ConversationStore(JdbcTemplate db,PlatformTransactionManager manager){this.db=db;this.tx=new TransactionTemplate(manager);}
+ private final JdbcTemplate db;private final TransactionTemplate tx;private final ConversationCapacity capacity;
+ public ConversationStore(JdbcTemplate db,PlatformTransactionManager manager){this(db,manager,ConversationCapacity.defaults());}
+ @org.springframework.beans.factory.annotation.Autowired
+ public ConversationStore(JdbcTemplate db,PlatformTransactionManager manager,ConversationCapacity capacity){this.db=db;this.tx=new TransactionTemplate(manager);this.capacity=capacity;this.tx.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_READ_COMMITTED);}
  static DomainException conflict(){return new DomainException(409,"CONVERSATION_CONFLICT","会话已更新或请求正在处理中，请刷新后重试");}
  static DomainException missing(){return new DomainException(404,"CONVERSATION_NOT_FOUND","会话或消息不存在");}
  public Row get(String id){var rows=db.query("SELECT * FROM conversation WHERE id=?",(r,n)->new Row(r.getString("id"),r.getLong("owner_id"),r.getString("subject_id"),r.getString("title"),r.getLong("version")),id);if(rows.isEmpty())throw missing();return rows.getFirst();}
@@ -24,6 +26,9 @@ public class ConversationStore {
   db.queryForObject("SELECT setting_value FROM sys_platform_setting WHERE setting_key='conversation.lock' FOR UPDATE",String.class);
   var old=db.queryForList("SELECT id FROM conversation WHERE owner_id=? AND idempotency_key=?",String.class,owner,input.idempotencyKey());
   if(!old.isEmpty()){var row=get(old.getFirst());if(!row.subjectId().equals(input.subjectId())||!row.title().equals(input.title().trim()))throw conflict();return row;}
+  if(Objects.requireNonNull(db.queryForObject("SELECT COUNT(*) FROM (SELECT id FROM conversation LIMIT ?) capacity_rows",Long.class,capacity.total()))>=capacity.total() ||
+     Objects.requireNonNull(db.queryForObject("SELECT COUNT(*) FROM (SELECT id FROM conversation WHERE owner_id=? LIMIT ?) capacity_rows",Long.class,owner,capacity.perActor()))>=capacity.perActor())
+   throw new DomainException(429,"CONVERSATION_HISTORY_CAPACITY","会话历史容量已达上限，请联系管理员调整容量");
   String id=UUID.randomUUID().toString();db.update("INSERT INTO conversation(id,owner_id,subject_id,title,idempotency_key) VALUES(?,?,?,?,?)",id,owner,input.subjectId(),input.title().trim(),input.idempotencyKey());return get(id);
  });}
  private org.springframework.jdbc.core.RowMapper<Stored> mapper(){return (r,n)->new Stored(r.getString("id"),r.getString("conversation_id"),r.getLong("sequence_no"),r.getString("question"),r.getString("status"),r.getString("clarification"),r.getString("definition_json"),r.getString("model_call_id"),r.getString("preview_id"),r.getString("task_id"),r.getString("chart_id"),r.getString("error_code"),r.getTimestamp("created_at").toInstant());}

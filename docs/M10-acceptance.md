@@ -50,3 +50,19 @@ Candidate `f4fbd4c36ee5946a8d9ef417d2e2c0606a9124a5` passed all three workflows:
 - Disposable Docker: https://github.com/NJgaoyang/datalens/actions/runs/41661927171
 
 The real synthetic MySQL backup→fresh-volume restore, exact full-dump comparison, restored application readiness and MySQL/Redis outage recovery all passed. No real analytical service was involved. Subsequent review strengthens the lease-only HTTP assertion, historical migration-byte check, and comparator precision/question uniqueness tests. Those follow-up changes require their own exact-head CI; the links above do not falsely certify later commits. Current workflow history is the authoritative final status.
+
+## Final strengthened-head evidence (local report)
+
+Head `3dea22a6a52e598b0a11e7c29f6e924e0d9161fe`:
+- Frontend https://github.com/NJgaoyang/datalens/actions/runs/41662695743: 69 unit + 83 Chromium cases passed, typecheck/build passed.
+- Docker https://github.com/NJgaoyang/datalens/actions/runs/41662695695: fresh-volume restore and dependency recovery passed.
+- Backend https://github.com/NJgaoyang/datalens/actions/runs/41662695778: full pinned Maven verify/package passed: 358 unit + 93 real MySQL/Redis integration tests, zero failures/errors/skips; 12 Python evidence-gate tests passed; migration baseline check passed.
+
+Independent final static review found no remaining material concerns in the M10 fixes. All production blockers in the matrix remain.
+
+Final acceptance evidence above is maintained locally for handoff; committed report contains initial successful candidate evidence and requires exact-head workflow verification. All three final-head workflows were verified successful on 2026-11-03. No merge or deployment occurred.
+
+## Further M10 code-solvable hardening (local checks passed, CI pending)
+Non-destructive admission quotas, chart-list concurrency admission, and application-side bounded JDBC cell reading have passed local checks and await exact-head CI. See `M10-capacity-hardening.md`; quota defaults are not production sizing. No retention deletion, real service contact, merge or deployment is introduced. Earlier final-head evidence does not certify this follow-up until its own exact-head CI completes.
+
+Final local hardening check: Java21 compilation of all main/test sources; 404 unit tests passed, zero skips; frontend69 unit tests, typecheck/build; 12 offline validator tests; shell/YAML validation. Independent static review cleared quota transactions/replay, preserved revoke/recovery and fixed-scalar/bounded-stream paths. No local MySQL/Docker or live services were used.

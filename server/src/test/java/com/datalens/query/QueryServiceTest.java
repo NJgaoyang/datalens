@@ -81,16 +81,16 @@ class QueryServiceTest {
     }
     @Test void rowLimitExplicitlySignalsTruncationAndPreservesDecimal() throws Exception {
         ResultSet rows=mock(ResultSet.class);ResultSetMetaData md=mock(ResultSetMetaData.class);
-        when(rows.getMetaData()).thenReturn(md);when(md.getColumnCount()).thenReturn(1);when(md.getColumnLabel(1)).thenReturn("amount");when(md.getColumnTypeName(1)).thenReturn("DECIMAL");
+        when(rows.getMetaData()).thenReturn(md);when(md.getColumnCount()).thenReturn(1);when(md.getColumnLabel(1)).thenReturn("amount");when(md.getColumnTypeName(1)).thenReturn("DECIMAL");when(md.getColumnType(1)).thenReturn(java.sql.Types.DECIMAL);when(md.getPrecision(1)).thenReturn(38);when(md.getScale(1)).thenReturn(4);
         when(rows.next()).thenReturn(true);when(rows.getString(1)).thenReturn("9007199254740993.1200");
         Result result=QueryService.read(rows,new QueryService.Running());
         assertThat(result.truncated()).isTrue();assertThat(result.rows()).hasSize(1000);assertThat(result.rows().getFirst()).containsExactly("9007199254740993.1200");verify(rows,times(1001)).next();
     }
     @Test void nullCellsArePreservedAndOversizeRejected() throws Exception {
         ResultSet rows=mock(ResultSet.class);ResultSetMetaData md=mock(ResultSetMetaData.class);
-        when(rows.getMetaData()).thenReturn(md);when(md.getColumnCount()).thenReturn(1);when(md.getColumnLabel(1)).thenReturn("amount");when(md.getColumnTypeName(1)).thenReturn("DECIMAL");
+        when(rows.getMetaData()).thenReturn(md);when(md.getColumnCount()).thenReturn(1);when(md.getColumnLabel(1)).thenReturn("amount");when(md.getColumnTypeName(1)).thenReturn("DECIMAL");when(md.getColumnType(1)).thenReturn(java.sql.Types.DECIMAL);when(md.getPrecision(1)).thenReturn(38);when(md.getScale(1)).thenReturn(4);
         when(rows.next()).thenReturn(true,false);assertThat(QueryService.read(rows,new QueryService.Running()).rows().getFirst()).containsExactly((String)null);
-        when(rows.next()).thenReturn(true);when(rows.getString(1)).thenReturn("x".repeat(2_000_001));
+        when(md.getColumnType(1)).thenReturn(Types.VARCHAR);when(rows.next()).thenReturn(true);when(rows.getCharacterStream(1)).thenAnswer(inv->new java.io.StringReader("x".repeat(2_000_001)));
         assertThatThrownBy(()->QueryService.read(rows,new QueryService.Running())).isInstanceOf(SQLException.class);
     }
     @Test void parametersAreBoundNotInterpolated() throws Exception {
@@ -196,7 +196,7 @@ class QueryServiceTest {
         when(connection.prepareStatement(anyString())).thenReturn(statement);
         when(statement.executeQuery()).thenAnswer(inv->{release.await(3,TimeUnit.SECONDS);revoked.set(true);return rows;});
         when(rows.getMetaData()).thenReturn(md);when(md.getColumnCount()).thenReturn(1);
-        when(md.getColumnLabel(1)).thenReturn("amount");when(md.getColumnTypeName(1)).thenReturn("DECIMAL");when(rows.next()).thenReturn(false);
+        when(md.getColumnLabel(1)).thenReturn("amount");when(md.getColumnTypeName(1)).thenReturn("DECIMAL");when(md.getColumnType(1)).thenReturn(java.sql.Types.DECIMAL);when(md.getPrecision(1)).thenReturn(38);when(md.getScale(1)).thenReturn(4);when(rows.next()).thenReturn(false);
         service.submitForPurpose(purposeInput(),chartContext,"request");release.countDown();
         verify(store,timeout(3000)).finish(eq("task"),eq("FAILED"),eq("QUERY_ACCESS_REVOKED"),anyLong(),isNull(),eq(false));
         verify(store,never()).finish(anyString(),eq("SUCCEEDED"),any(),anyLong(),any(),anyBoolean());
@@ -244,7 +244,7 @@ class QueryServiceTest {
         when(sources.open(owner,"subject",scope)).thenReturn(connection);when(connection.createStatement()).thenReturn(setup);
         when(connection.prepareStatement(anyString())).thenReturn(statement);when(statement.executeQuery()).thenReturn(rows);
         when(rows.getMetaData()).thenReturn(md);when(md.getColumnCount()).thenReturn(1);
-        when(md.getColumnLabel(1)).thenReturn("amount");when(md.getColumnTypeName(1)).thenReturn("DECIMAL");when(rows.next()).thenReturn(false);
+        when(md.getColumnLabel(1)).thenReturn("amount");when(md.getColumnTypeName(1)).thenReturn("DECIMAL");when(md.getColumnType(1)).thenReturn(java.sql.Types.DECIMAL);when(md.getPrecision(1)).thenReturn(38);when(md.getScale(1)).thenReturn(4);when(rows.next()).thenReturn(false);
         service.submitForPurpose(purposeInput(),chartContext,"request");
         verify(store,timeout(3000)).finish(eq("task"),eq("SUCCEEDED"),isNull(),anyLong(),anyString(),eq(false));
         verify(sources).open(owner,"subject",scope);verify(sources,never()).authorize(eq(actor),anyString());

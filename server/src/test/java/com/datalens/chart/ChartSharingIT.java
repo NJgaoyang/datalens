@@ -68,7 +68,7 @@ class ChartSharingIT {
             return rows;
         });
         when(rows.getMetaData()).thenReturn(metadata);when(metadata.getColumnCount()).thenReturn(1);
-        when(metadata.getColumnLabel(1)).thenReturn("id");when(metadata.getColumnTypeName(1)).thenReturn("BIGINT");
+        when(metadata.getColumnLabel(1)).thenReturn("id");when(metadata.getColumnTypeName(1)).thenReturn("BIGINT");when(metadata.getColumnType(1)).thenReturn(java.sql.Types.BIGINT);
         when(rows.next()).thenReturn(true,false);when(rows.getString(1)).thenReturn(EXACT);return c;
     }
     @AfterEach void cleanup() throws Exception {

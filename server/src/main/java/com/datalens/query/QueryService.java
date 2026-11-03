@@ -1,6 +1,8 @@
 package com.datalens.query;
 
 import java.sql.*;
+import java.io.IOException;
+import java.io.Reader;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -201,25 +203,98 @@ public class QueryService {
     static Result read(ResultSet rows,Running control) throws SQLException {
         var metadata=rows.getMetaData();int count=metadata.getColumnCount();
         if(count>100)throw new SQLException("Too many output columns");
-        var columns=new ArrayList<Column>();Set<String> names=new HashSet<>();
+        var columns=new ArrayList<Column>();Set<String> names=new HashSet<>();boolean[] scalar=new boolean[count];
         for(int i=1;i<=count;i++) {
             String name=metadata.getColumnLabel(i);
             if(name==null||name.length()>128||!names.add(name))throw new SQLException("Invalid or duplicate output name");
             columns.add(new Column(name,metadata.getColumnTypeName(i)));
+            scalar[i-1]=boundedScalar(metadata,i);
         }
-        var result=new ArrayList<List<String>>();int bytes=0;boolean truncated=false;
-        while(rows.next()) {
-            if(control.requested.get())throw new SQLException("Cancelled");
+        var result=new ArrayList<List<String>>();var budget=new CellBudget();boolean truncated=false;
+        while(true) {
+            checkReading(control);
+            if(!rows.next())break;
+            checkReading(control);
             if(result.size()==ROW_LIMIT){truncated=true;break;}
             var row=new ArrayList<String>();
             for(int i=1;i<=count;i++) {
-                String value=rows.getString(i);
-                if(value!=null){bytes+=value.getBytes(StandardCharsets.UTF_8).length;if(bytes>MAX_RESULT_BYTES)throw new SQLException("Result size limit");}
-                row.add(value);
+                row.add(scalar[i-1]?readScalar(rows,i,budget,control):readCell(rows,i,budget,control));
             }
             result.add(Collections.unmodifiableList(row));
         }
         return new Result(List.copyOf(columns),List.copyOf(result),truncated,ROW_LIMIT);
+    }
+    private static boolean boundedScalar(ResultSetMetaData metadata,int column) throws SQLException {
+        return switch(metadata.getColumnType(column)) {
+            case Types.BOOLEAN,Types.TINYINT,Types.SMALLINT,Types.INTEGER,Types.BIGINT,
+                 Types.REAL,Types.FLOAT,Types.DOUBLE,Types.DATE,Types.TIME,Types.TIMESTAMP,
+                 Types.TIME_WITH_TIMEZONE,Types.TIMESTAMP_WITH_TIMEZONE -> true;
+            case Types.NUMERIC,Types.DECIMAL -> {
+                // Decimal getString preserves scale. Refuse unbounded/unknown precision before materializing.
+                int precision=metadata.getPrecision(column),scale=metadata.getScale(column);
+                if(precision<1 || precision>1000 || scale < -1000 || scale>1000)
+                    throw new SQLException("Unsupported decimal precision or scale");
+                yield true;
+            }
+            default -> false;
+        };
+    }
+    private static String readScalar(ResultSet rows,int column,CellBudget budget,Running control) throws SQLException {
+        checkReading(control);
+        // Only intrinsically bounded JDBC scalar types use this path, never text/LOB/unknown types.
+        // The cached StarRocks/MySQL drivers do not support character streams for decoded numeric types.
+        String value=rows.getString(column);
+        checkReading(control);
+        if(value!=null) {
+            if(value.length()>4096)throw new SQLException("Invalid scalar size");
+            budget.add(value.getBytes(StandardCharsets.UTF_8).length);
+        }
+        return value;
+    }
+    private static final class CellBudget {
+        int bytes;
+        void add(int amount) throws SQLException {
+            if(amount>MAX_RESULT_BYTES-bytes)throw new SQLException("Result size limit");
+            bytes+=amount;
+        }
+    }
+    private static void checkReading(Running control) throws SQLException {
+        if(control.requested.get() || Thread.currentThread().isInterrupted())throw new SQLException("Cancelled");
+    }
+    /** Bounds our materialization, not buffering performed inside the JDBC driver. */
+    private static String readCell(ResultSet rows,int column,CellBudget budget,Running control) throws SQLException {
+        checkReading(control);
+        // Never fall back to getString: it can allocate an arbitrarily large cell before any check.
+        try(Reader reader=rows.getCharacterStream(column)) {
+            checkReading(control);
+            if(reader==null)return null;
+            var value=new StringBuilder();char[] chunk=new char[2048];boolean highSurrogate=false;
+            while(true) {
+                checkReading(control);
+                int read=reader.read(chunk,0,Math.min(chunk.length,MAX_RESULT_BYTES-budget.bytes+1));
+                checkReading(control);
+                if(read<0)break;
+                if(read==0)throw new SQLException("Character stream made no progress");
+                for(int i=0;i<read;i++) {
+                    char c=chunk[i];
+                    if(highSurrogate) {
+                        highSurrogate=false;
+                        if(Character.isLowSurrogate(c)) {budget.add(4);value.append(c);continue;}
+                        budget.add(1); // Java UTF-8 encoding replaces an unpaired surrogate with '?'.
+                    }
+                    if(Character.isHighSurrogate(c))highSurrogate=true;
+                    else budget.add(c<0x80?1:c<0x800?2:Character.isLowSurrogate(c)?1:3);
+                    value.append(c);
+                }
+            }
+            if(highSurrogate)budget.add(1);
+            checkReading(control);
+            return value.toString();
+        } catch(IOException failure) {
+            throw new SQLException("Cannot read result character stream",failure);
+        } catch(AbstractMethodError unsupported) {
+            throw new SQLFeatureNotSupportedException("JDBC character streams are required",unsupported);
+        }
     }
     static long elapsed(long start){return TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-start);}
     static String digest(String text) {

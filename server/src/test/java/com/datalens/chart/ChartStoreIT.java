@@ -38,4 +38,22 @@ class ChartStoreIT {
         assertThat(store.createRun(actor,original,"refresh-key","new-dates")).isEqualTo(run);
         assertThatThrownBy(()->store.createRun(actor,original,"new-refresh-key","new-dates")).isInstanceOf(DomainException.class);
     }
+
+
+    @Test void realDatabaseEnumerationDoesNotRefuseRevokedOrUnicodeSearchCandidates(){
+        for(int i=0;i<1002;i++){String id=UUID.randomUUID().toString();charts.add(id);db.update("INSERT INTO chart(id,owner_id,name,revision_id) VALUES(?,?,?,?)",id,actor.id(),i==1001?"唯一目标 %_!":"中文报表 "+i,UUID.randomUUID().toString());}
+        var permissions=org.mockito.Mockito.mock(com.datalens.permission.PermissionService.class);
+        var policy=org.mockito.Mockito.mock(ChartPermissionService.class);
+        var queries=org.mockito.Mockito.mock(com.datalens.query.QueryService.class);
+        org.mockito.Mockito.when(permissions.current()).thenReturn(actor);
+        org.mockito.Mockito.when(policy.executionOwner(org.mockito.ArgumentMatchers.eq(actor),org.mockito.ArgumentMatchers.anyString(),org.mockito.ArgumentMatchers.anyString())).thenThrow(new org.springframework.security.access.AccessDeniedException("revoked"));
+        var service=new ChartService(store,queries,permissions,tools.jackson.databind.json.JsonMapper.builder().build(),policy);
+        assertThat(service.list("mine",1,20).total()).isZero();
+        var target=store.chart(charts.getLast());
+        org.mockito.Mockito.doReturn(actor).when(policy).executionOwner(actor,target.id(),target.revisionId());
+        org.mockito.Mockito.when(policy.view(actor,target.id())).thenReturn(target);
+        var result=service.list("mine",1,20,"唯一目标 %_!");
+        assertThat(result.total()).isEqualTo(1);assertThat(result.items()).containsExactly(target);
+        org.mockito.Mockito.verifyNoInteractions(queries);
+    }
 }

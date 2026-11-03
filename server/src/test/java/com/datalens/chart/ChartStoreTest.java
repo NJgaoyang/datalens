@@ -19,7 +19,7 @@ class ChartStoreTest {
     final CurrentActor actor=new CurrentActor(7,"owner","USER",1);
     final Summary old=new Summary("chart","Original",7,1,"revision-1",Instant.EPOCH);
     @BeforeEach void setup(){
-        db=mock(JdbcTemplate.class);var manager=mock(PlatformTransactionManager.class);
+        db=mock(JdbcTemplate.class);when(db.queryForObject(startsWith("SELECT COUNT(*) FROM (SELECT 1 FROM "),eq(Long.class),any(Object[].class))).thenReturn(0L);var manager=mock(PlatformTransactionManager.class);
         when(manager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
         store=spy(new ChartStore(db,manager,mock(AuditService.class)));doNothing().when(store).lock();
     }
@@ -43,4 +43,10 @@ class ChartStoreTest {
         assertThatThrownBy(()->store.save(actor,preview,"Renamed","request")).isInstanceOf(DomainException.class);
     }
     @Test void lockedRechecksUseReadCommittedNotSnapshotIsolation(){var manager=mock(PlatformTransactionManager.class);when(manager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));var checked=spy(new ChartStore(db,manager,mock(AuditService.class)));doNothing().when(checked).lock();doReturn(old).when(checked).chart("chart");doReturn(new ChartStore.Run("run","chart","revision-1",7,"[]",null)).when(checked).run(anyString());checked.createRun(actor,old,"new-key","[]");verify(manager).getTransaction(argThat(d->d.getIsolationLevel()==org.springframework.transaction.TransactionDefinition.ISOLATION_READ_COMMITTED));}
+
+    @Test void unauthorizedAdminListValidationNeverReadsCandidates(){
+        assertThatThrownBy(()->store.validateListScope(actor,"admin")).isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        assertThatThrownBy(()->store.validateListScope(actor,"invalid")).isInstanceOf(DomainException.class);
+        verifyNoInteractions(db);
+    }
 }
