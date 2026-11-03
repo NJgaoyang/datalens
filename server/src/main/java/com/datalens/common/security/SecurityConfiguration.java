@@ -24,6 +24,8 @@ public class SecurityConfiguration {
                 .requestMatchers(HttpMethod.POST,"/api/v1/auth/login").permitAll()
                 .requestMatchers("/api/v1/auth/me","/api/v1/auth/logout","/api/v1/auth/password").authenticated()
                 .requestMatchers("/api/v1/admin/users","/api/v1/admin/users/*/enabled","/api/v1/admin/users/*/password").hasRole("SUPER_ADMIN")
+                .requestMatchers("/api/v1/admin/sources", "/api/v1/admin/sources/*", "/api/v1/admin/sources/*/test", "/api/v1/admin/sources/*/harvest", "/api/v1/admin/sources/*/metadata", "/api/v1/admin/subjects", "/api/v1/admin/subjects/*").hasRole("SUPER_ADMIN")
+                .requestMatchers(HttpMethod.GET,"/api/v1/subjects","/api/v1/subjects/*/metadata").authenticated()
                 .anyRequest().denyAll());
         http.formLogin(AbstractHttpConfigurer::disable).httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable).requestCache(AbstractHttpConfigurer::disable);

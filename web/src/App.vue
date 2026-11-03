@@ -15,6 +15,7 @@ async function signOut() {
 }
 const navigation = [
   { path: '/', label: '工程概览', symbol: '◫' },
+  { path: '/subjects', label: '业务主题', symbol: '▦' },
   { path: '/ask', label: '智能问数', symbol: '?' },
   { path: '/charts/mine', label: '我的图表', symbol: '▥' },
   { path: '/charts/shared', label: '共享给我', symbol: '↗' },
@@ -37,6 +38,7 @@ const navigation = [
       </nav>
       <div class="sidebar-bottom">
         <RouterLink v-if="session.user?.role === 'SUPER_ADMIN'" to="/settings" class="nav-item" :class="{ active: route.path === '/settings' }"><span class="nav-symbol" aria-hidden="true">⚙</span>用户管理</RouterLink>
+        <RouterLink v-if="session.user?.role === 'SUPER_ADMIN'" to="/sources" class="nav-item" :class="{ active: route.path === '/sources' }"><span class="nav-symbol" aria-hidden="true">▤</span>数据源管理</RouterLink>
         <p>独立部署 · 只读分析</p>
       </div>
     </aside>

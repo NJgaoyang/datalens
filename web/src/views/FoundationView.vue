@@ -47,7 +47,7 @@ const stages = [
 <template>
   <section class="page">
     <div class="page-heading">
-      <div><div class="eyebrow">DATALENS / FOUNDATION</div><h1>从可靠的基础开始</h1><p class="subtitle">独立智能问数与动态图表平台。当前已交付工程基础与账号权限，不展示模拟业务数据。</p></div>
+      <div><div class="eyebrow">DATALENS / FOUNDATION</div><h1>从可靠的基础开始</h1><p class="subtitle">独立智能问数与动态图表平台。当前已交付工程基础、账号权限与数据源元数据管理，不展示模拟业务数据。</p></div>
       <el-button :loading="loading" @click="reload">刷新连接状态</el-button>
     </div>
 
@@ -73,7 +73,7 @@ const stages = [
         <h3>先有权限，再有智能</h3><p>默认拒绝未开放的接口。使用服务端会话认证与超管授权；没有默认密码或自行注册入口。</p>
       </section>
     </div>
-    <p class="scope-note">当前范围：M00 工程骨架与 M01 身份权限。导航中的业务页面展示交付范围，不代表相关功能已经实现。</p>
+    <p class="scope-note">当前范围：M00 工程骨架、M01 身份权限与 M02 数据源及元数据管理。真实 StarRocks 集群验收仍待完成；其余规划页面不代表功能已经实现。</p>
   </section>
 </template>
 

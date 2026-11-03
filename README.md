@@ -1,12 +1,14 @@
 # DataLens
 
-独立智能问数与动态图表平台。
+独立智能问数与动态图表平台，按 M00–M10 分模块交付。
 
-- 系统元数据：MySQL 8.4
-- 分析数据源：外接 StarRocks，只读查询
-- 后端：Java 21 / Spring Boot
-- 前端：Vue 3 / TypeScript / ECharts
+- 系统元数据：MySQL 8.4；身份会话：Redis
+- 分析数据源：外接 StarRocks，只读账号，显式元数据与主题权限范围
+- 后端：Java 21 / Spring Boot；前端：Vue 3 / TypeScript / ECharts
+- 当前代码阶段：M02 数据源与元数据。M03–M10 尚未交付。
 
-项目正在初始化。首期工程骨架在 `dev20261103` 分支开发，按 M00–M10 分模块验收。
+启动和运行配置见 [deploy/README.md](deploy/README.md)，接口见 [contracts/datasources.md](contracts/datasources.md)，验收边界见 [docs/M02-acceptance.md](docs/M02-acceptance.md)。无 StarRocks、无模型密钥时支持零数据源启动。
+
+真实 StarRocks 集群尚未提供：模拟 JDBC/元数据测试不等于真实集群接入验收。正式接入前必须验证目标版本、TLS、只读权限和元数据映射。
 
 本仓库不包含生产数据库配置、模型密钥或业务数据。

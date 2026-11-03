@@ -36,8 +36,8 @@ class FoundationIT {
     @Test void realMySqlMigrationAndMapperWorkWithoutModelOrStarRocks() throws Exception {
         mvc.perform(get("/api/v1/system/info")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("DataLens"))
-                .andExpect(jsonPath("$.data.stage").value("M01"))
-                .andExpect(jsonPath("$.data.enabledModules.length()").value(2));
+                .andExpect(jsonPath("$.data.stage").value("M02"))
+                .andExpect(jsonPath("$.data.enabledModules.length()").value(3));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sys_platform_setting", Integer.class)).isEqualTo(2);
     }
 

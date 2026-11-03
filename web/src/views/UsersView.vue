@@ -47,6 +47,7 @@ onMounted(reload); onUnmounted(() => { active?.abort(); clearPassword(); });
   <el-alert v-if="error && !dialog" :title="error" type="error" :closable="false" show-icon class="form-alert" />
   <div class="panel"><div class="panel-heading"><h2>系统账号</h2><el-button :loading="loading" :disabled="busy" @click="reload">刷新列表</el-button></div>
     <el-table v-loading="loading" :data="users" empty-text="暂无用户" row-key="id">
+      <el-table-column prop="id" label="账号 ID" width="100" />
       <el-table-column prop="username" label="用户名" min-width="150" />
       <el-table-column label="角色" min-width="120"><template #default="{ row }">{{ row.role === 'SUPER_ADMIN' ? '超级管理员' : '普通用户' }}</template></el-table-column>
       <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '有效' : '已禁用' }}</el-tag></template></el-table-column>
