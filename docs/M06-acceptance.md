@@ -29,3 +29,7 @@ Commands required: backend `mvn -B -ntp -f server/pom.xml verify -Pintegration`;
 Frontend final local checks: `npm test` passed 41 tests across 7 files; `npm run build` passed Vue/TypeScript and Vite. Playwright lists 56 cases across 6 files, including 13 new semantic flows. Local Chromium cannot create IPC sockets, so browser assertions and visual screenshots did not run locally. Exact-commit frontend CI must execute all 56 cases. See web/M06-verification.md for commands and boundaries.
 
 V1–V6 were verified byte-identical against baseline commit bbab8ce20f683229e820e4c1817f89242d77ec75; only V7 is new. Foundation and Compose expectations include the added semantic lock row and M06 module/stage. No merge or deployment performed.
+
+## Initial exact-commit CI and isolation correction
+
+Commit `22a59cc9fe53be047b1103cc5705f9747fdce1a8` passed [frontend](https://github.com/NJgaoyang/datalens/actions/runs/41649868323) and [disposable Compose](https://github.com/NJgaoyang/datalens/actions/runs/41649868261). [Backend](https://github.com/NJgaoyang/datalens/actions/runs/41649868150) passed 205 unit tests and all 14 new semantic HTTP/MySQL/Redis tests, but later legacy suites exhausted the shared Redis global login admission counter (120/minute), causing eight setup failures. The correction isolates the new synthetic test suite's global admission bucket in disposable CI Redis; production rate limits and account limits remain unchanged. Full CI reruns on the correction commit before acceptance.

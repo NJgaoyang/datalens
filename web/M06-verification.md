@@ -16,3 +16,5 @@ Executed on final frontend source:
 - `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e -- e2e/semantics.spec.ts --workers=1`: attempted before the final three recovery scenarios were added. All 10 attempted scenarios stopped at Chromium launch before assertions: `process_singleton_posix.cc` socket creation denied (`Operation not permitted`). No local browser pass or screenshot verification claimed. Run all 56 scenarios in CI on the exact published commit.
 
 No dependency or lockfile changes. Local Node is v24.22.1 rather than the project's supported Node 22 range; the exact-version CI remains the canonical environment. No real StarRocks, model, business-ground-truth, backend integration or database migration checks were performed by this frontend subtask. Mock UI tests do not establish live integration correctness.
+
+Initial commit 22a59cc9fe53be047b1103cc5705f9747fdce1a8 passed the complete frontend workflow, including 56 Chromium scenarios: https://github.com/NJgaoyang/datalens/actions/runs/41649868323 . A backend test-isolation correction triggers another exact-commit full workflow before final acceptance.

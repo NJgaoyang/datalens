@@ -8,6 +8,7 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.*;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.annotation.DirtiesContext;
 import tools.jackson.databind.*;
@@ -22,12 +23,16 @@ class SemanticIT {
     static final String PASSWORD="Semantic-integration-only-42";
     @Value("${local.server.port}") int port;
     @Autowired JdbcTemplate db;
+    @Autowired StringRedisTemplate redis;
     @Autowired PasswordEncoder passwords;
     @Autowired ObjectMapper json;
     final List<Long> users=new ArrayList<>();
     Browser admin,reader,outsider;
     String source,subject;
     @BeforeEach void seed() throws Exception {
+        // Disposable integration Redis only: isolate this suite's global admission budget.
+        // Preserve production throttling and all account counters/session keys.
+        redis.delete("datalens:login:global");
         admin=account("SUPER_ADMIN");reader=account("USER");outsider=account("USER");
         source=UUID.randomUUID().toString();subject=UUID.randomUUID().toString();
         db.update("INSERT INTO ds_source(id,name,host,port,catalog_name,database_name,username,credential,enabled) VALUES(?,'Semantic synthetic test','10.20.30.40',9030,'default_catalog','sales','reader','not-used',TRUE)",source);
@@ -52,6 +57,8 @@ class SemanticIT {
         return admin.ok("POST",path("/publish"),new Version(r.path("version").asLong()));
     }
     @AfterEach void cleanup() {
+        // Clear before SQL cleanup, so a cleanup failure cannot throttle later HTTP suites.
+        redis.delete("datalens:login:global");
         // Tables owned by this module only, followed by source and account fixtures.
         db.update("DELETE FROM semantic_release WHERE subject_id=?",subject);
         db.update("DELETE FROM semantic_workspace WHERE subject_id=?",subject);
