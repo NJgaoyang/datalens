@@ -1,7 +1,7 @@
 name: Backend verification
 on:
   push:
-    branches: [main, dev20261103]
+    branches: [main, dev20261103, fix/m00-frontend-lock]
     paths: ['server/**', '.github/workflows/backend.yml']
   pull_request:
     paths: ['server/**', '.github/workflows/backend.yml']
@@ -62,3 +62,4 @@ jobs:
             server/target/datalens-server.jar
           if-no-files-found: warn
           retention-days: 7
+

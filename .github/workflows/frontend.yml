@@ -1,7 +1,7 @@
 name: Frontend verification
 on:
   push:
-    branches: [main, dev20261103]
+    branches: [main, dev20261103, fix/m00-frontend-lock]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -39,3 +39,4 @@ jobs:
             web/dist/
           if-no-files-found: warn
           retention-days: 7
+

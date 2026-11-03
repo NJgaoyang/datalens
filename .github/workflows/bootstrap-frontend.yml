@@ -28,6 +28,9 @@ jobs:
         if: steps.check.outputs.needed == 'true'
         with:
           node-version: '22'
+      - name: Pin the dependency resolver
+        if: steps.check.outputs.needed == 'true'
+        run: npm install --global npm@11.19.1 --no-audit --no-fund
       - name: Resolve supported series to exact versions and verify
         if: steps.check.outputs.needed == 'true'
         working-directory: web
@@ -54,3 +57,4 @@ jobs:
             web/package-lock.json
           if-no-files-found: warn
           retention-days: 7
+
