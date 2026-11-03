@@ -48,6 +48,19 @@ class QueryStoreIT {
         for(String id:sources)db.update("DELETE FROM ds_source WHERE id=?",id);
         for(long id:users)db.update("DELETE FROM sys_user WHERE id=?",id);
     }
+    @Test void purposeBindingIsPersistedAtomicallyAndCannotChangeOnIdempotentRead() {
+        var context=new QueryService.QueryContext("CHART",UUID.randomUUID().toString(),UUID.randomUUID().toString());
+        var input=new Submit(subject,"SELECT id FROM orders",List.of(),"purpose-binding-key");
+        var row=store.create(actor,input,source,1,"a".repeat(64),"b".repeat(64),"[]","request",context);
+        assertThat(row.context()).isEqualTo(context);
+        assertThat(store.get(row.view().id()).context()).isEqualTo(context);
+        assertThat(store.create(actor,input,source,1,"a".repeat(64),"b".repeat(64),"[]","request",context).view().id()).isEqualTo(row.view().id());
+        assertThatThrownBy(()->store.create(actor,input,source,1,"a".repeat(64),"b".repeat(64),"[]","request"))
+            .isInstanceOfSatisfying(DomainException.class,e->assertThat(e.code()).isEqualTo("IDEMPOTENCY_CONFLICT"));
+        assertThatThrownBy(()->store.create(actor,input,source,1,"a".repeat(64),"b".repeat(64),"[]","request",
+            new QueryService.QueryContext("CHART",context.resourceId(),UUID.randomUUID().toString())))
+            .isInstanceOfSatisfying(DomainException.class,e->assertThat(e.code()).isEqualTo("IDEMPOTENCY_CONFLICT"));
+    }
     @Test void concurrentDuplicateCreatesExactlyOneTaskAndOneAudit() throws Exception {
         var results=race(8,i->create("same-key-123"));
         assertThat(results.stream().map(r->r.view().id()).distinct()).hasSize(1);

@@ -10,10 +10,15 @@ import com.datalens.audit.AuditService;
 import com.datalens.common.web.DomainException;
 import com.datalens.identity.CurrentActor;
 import static com.datalens.query.QueryModels.*;
+import com.datalens.query.QueryService.QueryContext;
 
 @Repository
 public class QueryStore {
-    public record Stored(TaskView view,long actorId,long authVersion,String sourceId,long sourceVersion,String requestHash,String resultJson,String sql,String parametersJson) {}
+    public record Stored(TaskView view,long actorId,long authVersion,String sourceId,long sourceVersion,String requestHash,String resultJson,String sql,String parametersJson,QueryContext context) {
+        public Stored(TaskView view,long actorId,long authVersion,String sourceId,long sourceVersion,String requestHash,String resultJson,String sql,String parametersJson) {
+            this(view,actorId,authVersion,sourceId,sourceVersion,requestHash,resultJson,sql,parametersJson,null);
+        }
+    }
     private final JdbcTemplate db;private final TransactionTemplate tx;private final AuditService audit;
     public QueryStore(JdbcTemplate db,PlatformTransactionManager manager,AuditService audit) {
         this.db=db;this.tx=new TransactionTemplate(manager);this.audit=audit;
@@ -23,18 +28,23 @@ public class QueryStore {
             var finished=r.getTimestamp("finished_at");var duration=r.getObject("duration_ms");
             return new Stored(new TaskView(r.getString("id"),r.getString("subject_id"),r.getString("status"),r.getString("error_code"),
                 r.getTimestamp("created_at").toInstant(),finished==null?null:finished.toInstant(),duration==null?null:((Number)duration).longValue(),r.getBoolean("truncated")),
-                r.getLong("actor_id"),r.getLong("auth_version"),r.getString("source_id"),r.getLong("source_version"),r.getString("request_hash"),r.getString("result_json"),r.getString("sql_text"),r.getString("parameters_json"));
+                r.getLong("actor_id"),r.getLong("auth_version"),r.getString("source_id"),r.getLong("source_version"),r.getString("request_hash"),r.getString("result_json"),r.getString("sql_text"),r.getString("parameters_json"),
+                r.getString("purpose")==null && r.getString("resource_id")==null && r.getString("revision_id")==null?null:
+                    new QueryContext(r.getString("purpose"),r.getString("resource_id"),r.getString("revision_id")));
         },id);
         if(rows.isEmpty()) throw new DomainException(404,"QUERY_NOT_FOUND","查询任务不存在");
         return rows.getFirst();
     }
     public Stored create(CurrentActor actor,Submit input,String sourceId,long sourceVersion,String hash,String version,String parametersJson,String requestId) {
+        return create(actor,input,sourceId,sourceVersion,hash,version,parametersJson,requestId,null);
+    }
+    public Stored create(CurrentActor actor,Submit input,String sourceId,long sourceVersion,String hash,String version,String parametersJson,String requestId,QueryContext context) {
         return tx.execute(status->{
             db.queryForObject("SELECT setting_value FROM sys_platform_setting WHERE setting_key='query.lock' FOR UPDATE",String.class);
             var existing=db.queryForList("SELECT id FROM query_task WHERE actor_id=? AND idempotency_key=?",String.class,actor.id(),input.idempotencyKey());
             if(!existing.isEmpty()) {
                 var previous=get(existing.getFirst());
-                if(!hash.equals(previous.requestHash())) throw new DomainException(409,"IDEMPOTENCY_CONFLICT","重复提交键已用于不同查询");
+                if(!hash.equals(previous.requestHash()) || !Objects.equals(context,previous.context())) throw new DomainException(409,"IDEMPOTENCY_CONFLICT","重复提交键已用于不同查询");
                 return previous;
             }
             // Unknown database termination quarantines this source until an operator verifies and resolves it.
@@ -46,8 +56,8 @@ public class QueryStore {
                count("SELECT COUNT(*) FROM query_task WHERE"+active)>=32)
                 throw new DomainException(429,"QUERY_CONCURRENCY_LIMIT","查询并发已达上限");
             String id=UUID.randomUUID().toString();
-            db.update("INSERT INTO query_task(id,actor_id,auth_version,subject_id,source_id,source_version,idempotency_key,request_hash,query_version,sql_text,parameters_json,status,request_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,'QUEUED',?)",
-                id,actor.id(),actor.authVersion(),input.subjectId(),sourceId,sourceVersion,input.idempotencyKey(),hash,version,input.sql(),parametersJson,requestId);
+            db.update("INSERT INTO query_task(id,actor_id,auth_version,subject_id,source_id,source_version,idempotency_key,request_hash,query_version,sql_text,parameters_json,status,request_id,purpose,resource_id,revision_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,'QUEUED',?,?,?,?)",
+                id,actor.id(),actor.authVersion(),input.subjectId(),sourceId,sourceVersion,input.idempotencyKey(),hash,version,input.sql(),parametersJson,requestId,context==null?null:context.purpose(),context==null?null:context.resourceId(),context==null?null:context.revisionId());
             audit.append(actor.id(),"QUERY_SUBMIT","QUERY",id,"QUEUED",requestId);
             return get(id);
         });

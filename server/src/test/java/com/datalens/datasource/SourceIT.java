@@ -91,6 +91,71 @@ class SourceIT {
         db.update("DELETE FROM ds_subject_user WHERE subject_id=?",subjectId);
         assertThat(user.send("GET","/api/v1/query-tasks/"+task+"/result",null,false).statusCode()).isEqualTo(403);
     }
+    void awaitTask(String task) throws Exception {
+        String status="";
+        for(int i=0;i<100;i++) {
+            var response=user.send("GET","/api/v1/query-tasks/"+task,null,false);
+            assertThat(response.statusCode()).isEqualTo(200);
+            status=json.readTree(response.body()).path("data").path("status").asString();
+            if(!Set.of("QUEUED","RUNNING").contains(status))break;
+            Thread.sleep(50);
+        }
+        assertThat(status).isEqualTo("SUCCEEDED");
+    }
+    @Test void privateChartLifecycleAndSubjectRevocationCoverChartAndGenericRoutes() throws Exception {
+        String sourceId=create();harvest(sourceId);String subjectId=subject(sourceId);
+        Connection connection=mock(Connection.class);Statement setup=mock(Statement.class);
+        PreparedStatement statement=mock(PreparedStatement.class);ResultSetMetaData metadata=mock(ResultSetMetaData.class);
+        when(pools.open(any())).thenReturn(connection);when(connection.createStatement()).thenReturn(setup);
+        when(connection.prepareStatement(anyString())).thenReturn(statement);
+        when(metadata.getColumnCount()).thenReturn(1);when(metadata.getColumnLabel(1)).thenReturn("id");
+        when(metadata.getColumnTypeName(1)).thenReturn("BIGINT");
+        when(statement.executeQuery()).thenAnswer(inv->{
+            var rows=mock(ResultSet.class);when(rows.getMetaData()).thenReturn(metadata);
+            when(rows.next()).thenReturn(true,false);when(rows.getString(1)).thenReturn("9007199254740993");return rows;
+        });
+        var definition=Map.of("subjectId",subjectId,"sql","SELECT id FROM orders","parameters",List.of(),
+            "timeRule",Map.of("kind","NONE"),"metricDescription","Exact identifier",
+            "spec",Map.of("type","KPI","measures",List.of("id")));
+        var previewBody=Map.of("definition",definition,"idempotencyKey",UUID.randomUUID().toString());
+        assertThat(new Browser().send("GET","/api/v1/charts",null,false).statusCode()).isEqualTo(401);
+        assertThat(user.send("POST","/api/v1/charts/previews",previewBody,false).statusCode()).isEqualTo(403);
+        var preview=user.send("POST","/api/v1/charts/previews",previewBody,true);
+        assertThat(preview.statusCode()).isEqualTo(200);
+        String previewId=json.readTree(preview.body()).path("data").path("id").asString();
+        String previewTask=json.readTree(preview.body()).path("data").path("taskId").asString();
+        awaitTask(previewTask);
+        assertThat(user.send("GET","/api/v1/charts/previews/"+previewId+"/result",null,false).body()).contains("9007199254740993");
+        assertThat(admin.send("GET","/api/v1/charts/previews/"+previewId+"/result",null,false).statusCode()).isEqualTo(403);
+        var save=Map.of("name","Private chart","previewId",previewId);
+        assertThat(admin.send("POST","/api/v1/charts",save,true).statusCode()).isEqualTo(403);
+        var saved=user.send("POST","/api/v1/charts",save,true);assertThat(saved.statusCode()).isEqualTo(200);
+        String chartId=json.readTree(saved.body()).path("data").path("id").asString();
+        String chartPath="/api/v1/charts/"+chartId;
+        assertThat(user.send("GET","/api/v1/charts",null,false).body()).contains(chartId);
+        assertThat(admin.send("GET","/api/v1/charts",null,false).body()).doesNotContain(chartId);
+        assertThat(user.send("GET",chartPath,null,false).statusCode()).isEqualTo(200);
+        assertThat(admin.send("GET",chartPath,null,false).statusCode()).isEqualTo(403);
+        var refreshBody=Map.of("idempotencyKey",UUID.randomUUID().toString());
+        assertThat(admin.send("POST",chartPath+"/refreshes",refreshBody,true).statusCode()).isEqualTo(403);
+        var refreshed=user.send("POST",chartPath+"/refreshes",refreshBody,true);assertThat(refreshed.statusCode()).isEqualTo(200);
+        String task=json.readTree(refreshed.body()).path("data").path("id").asString();
+        assertThat(task).isNotEqualTo(previewTask);awaitTask(task);
+        var result=user.send("GET",chartPath+"/refreshes/"+task+"/result",null,false);
+        assertThat(result.statusCode()).isEqualTo(200);assertThat(result.body()).contains("9007199254740993");
+        var successTime=json.readTree(user.send("GET",chartPath,null,false).body()).path("data").path("lastSuccessAt");
+        assertThat(successTime.isMissingNode()).isFalse();assertThat(successTime.isNull()).isFalse();
+        assertThat(user.send("POST",chartPath+"/refreshes",refreshBody,true).body()).contains(task);
+        verify(statement,times(2)).executeQuery();
+        db.update("DELETE FROM ds_subject_user WHERE subject_id=?",subjectId);
+        for(String path:List.of(chartPath+"/refreshes/"+task+"/result","/api/v1/query-tasks/"+task,
+            "/api/v1/query-tasks/"+task+"/result","/api/v1/charts/previews/"+previewId+"/result"))
+            assertThat(user.send("GET",path,null,false).statusCode()).as(path).isEqualTo(403);
+        assertThat(user.send("POST","/api/v1/query-tasks/"+task+"/cancel",Map.of(),true).statusCode()).isEqualTo(403);
+        assertThat(user.send("POST",chartPath+"/refreshes",refreshBody,true).statusCode()).isEqualTo(403);
+        assertThat(user.send("POST","/api/v1/charts",save,true).statusCode()).isEqualTo(403);
+        verify(statement,times(2)).executeQuery();
+    }
     @Test void administrationRequiresRoleAndCsrfAndEndpointAllowlist() throws Exception {
         var body=input("10.20.30.40","test-secret",true);
         assertThat(new Browser().send("GET","/api/v1/admin/sources",null,false).statusCode()).isEqualTo(401);

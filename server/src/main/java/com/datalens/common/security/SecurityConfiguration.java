@@ -28,6 +28,8 @@ public class SecurityConfiguration {
                 .requestMatchers(HttpMethod.GET,"/api/v1/subjects","/api/v1/subjects/*/metadata").authenticated()
                 .requestMatchers(HttpMethod.POST,"/api/v1/query-tasks","/api/v1/query-tasks/*/cancel").authenticated()
                 .requestMatchers(HttpMethod.GET,"/api/v1/query-tasks/*","/api/v1/query-tasks/*/result").authenticated()
+                .requestMatchers(HttpMethod.GET,"/api/v1/charts","/api/v1/charts/*","/api/v1/charts/previews/*","/api/v1/charts/previews/*/result","/api/v1/charts/*/refreshes/*/result").authenticated()
+                .requestMatchers(HttpMethod.POST,"/api/v1/charts","/api/v1/charts/previews","/api/v1/charts/*/revisions","/api/v1/charts/*/refreshes").authenticated()
                 .anyRequest().denyAll());
         http.formLogin(AbstractHttpConfigurer::disable).httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable).requestCache(AbstractHttpConfigurer::disable);

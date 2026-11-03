@@ -8,6 +8,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.security.access.AccessDeniedException;
@@ -20,6 +22,22 @@ import static com.datalens.query.QueryModels.*;
 
 @Service
 public class QueryService {
+    /** Server-only binding. Never accepted in the public query request DTO. */
+    public record QueryContext(String purpose,String resourceId,String revisionId) {}
+    private ObjectProvider<QueryPurposeAuthorization> purposeAuthorizations;
+    @Autowired
+    public void setPurposeAuthorizations(ObjectProvider<QueryPurposeAuthorization> purposeAuthorizations) {
+        this.purposeAuthorizations=purposeAuthorizations;
+    }
+    private void authorizePurpose(CurrentActor actor,QueryContext context) {
+        if(context==null)return;
+        if(context.purpose()==null || context.purpose().isBlank() || context.resourceId()==null || context.resourceId().isBlank())
+            throw new AccessDeniedException("Invalid query purpose binding");
+        var guards=purposeAuthorizations==null?List.<QueryPurposeAuthorization>of():
+            purposeAuthorizations.orderedStream().filter(guard->guard.supports(context.purpose())).toList();
+        if(guards.isEmpty())throw new AccessDeniedException("Unknown query purpose");
+        guards.forEach(guard->guard.authorize(actor,context));
+    }
     static final int ROW_LIMIT=1000, TIMEOUT_SECONDS=10, MAX_RESULT_BYTES=2_000_000;
     private final QueryStore store;private final QuerySourceAccess sources;private final PermissionService permissions;
     private final QueryLease lease;private final ObjectMapper json;
@@ -51,18 +69,26 @@ public class QueryService {
     }
     @EventListener(ApplicationReadyEvent.class) public void start() throws SQLException {lease.acquire();store.recover();ready=true;}
     public TaskView submit(Submit input,String requestId) {
+        return submitForPurpose(input,null,requestId);
+    }
+    public TaskView submitForPurpose(Submit input,QueryContext context,String requestId) {
         if(!ready || !lease.valid())throw new DomainException(503,"QUERY_EXECUTOR_UNAVAILABLE","查询执行器暂不可用");
-        CurrentActor actor=permissions.current();var scope=sources.authorize(actor,input.subjectId());
+        CurrentActor actor=permissions.current();authorizePurpose(actor,context);var scope=sources.authorize(actor,input.subjectId());
         input.parameters().forEach(QueryParameters::value);
         var validated=SafeSql.validate(input.sql(),scope.columns(),input.parameters());
         String params=json.writeValueAsString(input.parameters());
         if(params.getBytes(StandardCharsets.UTF_8).length>60000)throw new DomainException(422,"QUERY_PARAMETERS_TOO_LARGE","查询参数总大小超出限制");
-        String hash=digest(input.subjectId()+"\n"+validated.sql()+"\n"+params+"\n"+scope.sourceVersion());
-        var task=store.create(actor,input,scope.sourceId(),scope.sourceVersion(),hash,digest(validated.sql()),params,requestId);
+        String hash=digest(input.subjectId()+"\n"+validated.sql()+"\n"+params+"\n"+scope.sourceVersion()
+            +(context==null?"":"\n"+json.writeValueAsString(context)));
+        var task=context==null?store.create(actor,input,scope.sourceId(),scope.sourceVersion(),hash,digest(validated.sql()),params,requestId):
+            store.create(actor,input,scope.sourceId(),scope.sourceVersion(),hash,digest(validated.sql()),params,requestId,context);
+        // Includes idempotent retrieval: a previous binding can never be bypassed by a new submission.
+        if(!Objects.equals(context,task.context()))throw new AccessDeniedException("Query purpose changed");
+        authorized(task.view().id());
         if("QUEUED".equals(task.view().status())) {
             var control=new Running();
             if(running.putIfAbsent(task.view().id(),control)==null) {
-                try{executor.execute(()->execute(task.view().id(),actor,input,scope,validated.sql(),control));}
+                try{executor.execute(()->execute(task.view().id(),actor,input,scope,validated.sql(),context,control));}
                 catch(RejectedExecutionException failure){running.remove(task.view().id(),control);store.finish(task.view().id(),"FAILED","EXECUTOR_FULL",0,null,false);}
             }
         }
@@ -71,6 +97,7 @@ public class QueryService {
     QueryStore.Stored authorized(String id) {
         var actor=permissions.current();var task=store.get(id);
         if(task.actorId()!=actor.id())throw new AccessDeniedException("Query belongs to another user");
+        authorizePurpose(actor,task.context());
         var scope=sources.authorize(actor,task.view().subjectId());
         if(task.authVersion()!=actor.authVersion() || !task.sourceId().equals(scope.sourceId()) || task.sourceVersion()!=scope.sourceVersion())
             throw new AccessDeniedException("Query authorization changed");
@@ -79,6 +106,7 @@ public class QueryService {
         SafeSql.validate(task.sql(),scope.columns(),params);
         return task;
     }
+    public QueryContext context(String id){return authorized(id).context();}
     public TaskView get(String id){return authorized(id).view();}
     public Result result(String id) {
         var task=authorized(id);
@@ -99,12 +127,13 @@ public class QueryService {
         }
         return get(id);
     }
-    private void execute(String id,CurrentActor actor,Submit input,QuerySourceAccess.Scope scope,String sql,Running control) {
+    private void execute(String id,CurrentActor actor,Submit input,QuerySourceAccess.Scope scope,String sql,QueryContext context,Running control) {
         long started=System.nanoTime();ScheduledFuture<?> timeout=null;
         try {
             if(control.requested.get() || !store.start(id)) {store.finish(id,"CANCELLED",null,elapsed(started),null,false);return;}
             if(!lease.valid())throw new DomainException(503,"QUERY_LEASE_LOST","查询执行器租约失效");
             // Executor queue delay never grants stale permissions.
+            authorizePurpose(actor,context);
             var current=sources.authorize(actor,input.subjectId());
             if(!scope.equals(current))throw new AccessDeniedException("Scope changed");
             SafeSql.validate(sql,current.columns(),input.parameters());
@@ -122,7 +151,8 @@ public class QueryService {
                     control.dispatched=true;
                     try(ResultSet rows=statement.executeQuery()){result=read(rows,control);}
                     if(control.requested.get()) {finishCancellation(id,control,started);return;}
-                    // The same source revision and exact field permissions must still hold before persistence.
+                    // The purpose, source revision and exact field permissions must still hold before persistence.
+                    authorizePurpose(actor,context);
                     current=sources.authorize(actor,input.subjectId());
                     if(!scope.equals(current))throw new AccessDeniedException("Scope changed");
                     String encoded=json.writeValueAsString(result);
