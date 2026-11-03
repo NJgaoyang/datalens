@@ -8,8 +8,11 @@ import { readQuery, parseParameters, isPending, statusLabels, type QueryTask, ty
 import { chartTypes, listCharts, readChart, createPreview, previewResult, saveChart, publishRevision, refreshChart, refreshResult, listChartRecipients, updateChartSharing, deleteChart, restoreChart, transferChart, type ChartScope, type ChartVisibility, type ChartRecipient, type ChartSummary, type SavedChart, type Preview, type ChartDefinition, type ChartType } from '../api/charts';
 import { chartOptions } from '../charts/render';
 import ChartRenderer from '../components/ChartRenderer.vue';
+import ExportPanel from '../components/ExportPanel.vue';
 const route = useRoute(), router = useRouter();
-const listPage = ref(1);
+const listPage = ref(1), searchInput = ref('');
+const search = computed(() => typeof route.query.search === 'string' ? route.query.search.slice(0,100) : '');
+async function searchCharts() { listPage.value = 1; await router.push({path: route.path, query: searchInput.value.trim() ? {search: searchInput.value.trim()} : {}}); }
 const scope = computed<ChartScope>(() => ({'/charts/shared':'shared','/charts/public':'all','/charts/admin':'admin','/charts/trash':'trash'} as Record<string, ChartScope>)[route.path] ?? 'mine');
 const listTitles: Record<ChartScope,string> = {mine:'我的图表',shared:'共享给我',all:'全员共享',admin:'图表管理',trash:'图表回收站'};
 const visibilityLabels: Record<ChartVisibility,string> = {PRIVATE:'私有',ALL:'全员共享',SPECIFIC:'指定用户'};
@@ -25,7 +28,7 @@ function reset() { generation++; controller?.abort(); clearTimeout(timer); contr
 function active(epoch: number) { return epoch === generation; }
 function fail(cause: unknown) {
   error.value = errorMessage(cause); result.value = undefined;
-  if (cause instanceof ApiError && [401,403,404].includes(cause.status ?? 0)) { chart.value = undefined; preview.value = undefined; task.value = undefined; charts.value = []; subjects.value = []; editing.value = false; sql.value = ''; parameters.value = '[]'; metric.value = ''; sharingOpen.value = false; recipients.value = []; recipientIds.value = []; newOwner.value = undefined; semanticBinding.value = undefined; }
+  if (cause instanceof ApiError && [401,403,404].includes(cause.status ?? 0)) { chart.value = undefined; preview.value = undefined; task.value = undefined; charts.value = []; total.value = 0; subjects.value = []; editing.value = false; sql.value = ''; parameters.value = '[]'; metric.value = ''; sharingOpen.value = false; recipients.value = []; recipientIds.value = []; newOwner.value = undefined; semanticBinding.value = undefined; }
 }
 function definition(): ChartDefinition {
   if (!subject.value || !sql.value.trim()) throw new Error('请选择业务主题并填写只读 SQL');
@@ -81,11 +84,11 @@ async function edit() {
 }
 async function load() {
   if (isNew.value) { name.value = ''; fill({ subjectId: '', sql: '', parameters: [], metricDescription: '', spec: {type: 'TABLE', dimension: null, measures: []}, timeRule: {kind: 'NONE'} }); }
-  const {epoch,signal} = reset(); busy.value = true; error.value = ''; editing.value = false; sharingOpen.value = false; recipients.value = []; recipientIds.value = []; newOwner.value = undefined; semanticBinding.value = undefined; sql.value = ''; parameters.value = '[]'; metric.value = ''; subjects.value = []; chart.value = undefined; preview.value = undefined; task.value = undefined; result.value = undefined; charts.value = [];
+  const {epoch,signal} = reset(); busy.value = true; error.value = ''; editing.value = false; sharingOpen.value = false; recipients.value = []; recipientIds.value = []; newOwner.value = undefined; semanticBinding.value = undefined; sql.value = ''; parameters.value = '[]'; metric.value = ''; subjects.value = []; chart.value = undefined; preview.value = undefined; task.value = undefined; result.value = undefined; charts.value = []; total.value = 0;
   try {
     if (isNew.value) { const value = await listSubjects(false, signal); if (active(epoch)) subjects.value = value; }
     else if (id.value) { const value = await readChart(id.value, signal); if (!active(epoch)) return; chart.value = value; name.value = value.name; busy.value = false; refreshKey = crypto.randomUUID(); if (!value.deleted) await refresh(); return; }
-    else { const value = await listCharts(signal, listPage.value, scope.value); if (active(epoch)) { charts.value = value.items; total.value = value.total; } }
+    else { const value = await listCharts(signal, listPage.value, scope.value, search.value); if (active(epoch)) { charts.value = value.items; total.value = value.total; } }
   } catch (cause) { if (active(epoch)) fail(cause); }
   finally { if (active(epoch)) busy.value = false; }
 }
@@ -115,8 +118,8 @@ async function manage(action: 'sharing'|'delete'|'restore'|'owner', item: SavedC
   } catch (cause) { if (active(epoch)) fail(cause); }
   finally { if (active(epoch)) busy.value = false; }
 }
-watch(() => route.fullPath, () => { listPage.value = 1; void load(); }, { immediate: true });
-watch(() => session.user?.id, () => { reset(); chart.value = undefined; preview.value = undefined; result.value = undefined; task.value = undefined; charts.value = []; subjects.value = []; recipients.value = []; recipientIds.value = []; sharingOpen.value = false; editing.value = false; semanticBinding.value = undefined; sql.value = ''; parameters.value = '[]'; metric.value = ''; busy.value = false; });
+watch(() => route.fullPath, () => { listPage.value = 1; searchInput.value = search.value; void load(); }, { immediate: true });
+watch(() => session.user?.id, () => { reset(); chart.value = undefined; preview.value = undefined; result.value = undefined; task.value = undefined; charts.value = []; total.value = 0; subjects.value = []; recipients.value = []; recipientIds.value = []; sharingOpen.value = false; editing.value = false; semanticBinding.value = undefined; sql.value = ''; parameters.value = '[]'; metric.value = ''; busy.value = false; });
 onBeforeUnmount(() => { generation++; controller?.abort(); clearTimeout(timer); });
 </script>
 <template><section class="page">
@@ -124,7 +127,8 @@ onBeforeUnmount(() => { generation++; controller?.abort(); clearTimeout(timer); 
   <el-alert v-if="error" :title="error" type="error" :closable="false" class="form-alert"/>
   <div v-if="!id && !isNew" class="panel">
     <nav class="query-actions" aria-label="图表范围"><RouterLink to="/charts/mine" :aria-current="scope === 'mine' ? 'page' : undefined">我的图表</RouterLink><RouterLink to="/charts/shared" :aria-current="scope === 'shared' ? 'page' : undefined">共享给我</RouterLink><RouterLink to="/charts/public" :aria-current="scope === 'all' ? 'page' : undefined">全员共享</RouterLink><RouterLink to="/charts/trash" :aria-current="scope === 'trash' ? 'page' : undefined">回收站</RouterLink><RouterLink v-if="isAdmin" to="/charts/admin">管理全部图表</RouterLink></nav>
-    <p v-if="busy">正在读取…</p><p v-else-if="!charts.length">暂无图表。</p><p v-else class="scope-note">共 {{ total }} 个图表</p>
+    <form class="query-actions" @submit.prevent="searchCharts"><label>搜索图表<input v-model="searchInput" aria-label="搜索图表" maxlength="100" placeholder="按名称搜索当前范围"></label><el-button native-type="submit" :loading="busy">搜索</el-button></form><p class="scope-note">仅搜索当前有权查看的图表；列表不会执行分析查询。</p>
+    <p v-if="busy">正在读取…</p><p v-else-if="!charts.length">{{ search ? '没有找到匹配的图表。' : '暂无图表。' }}</p><p v-else class="scope-note">共 {{ total }} 个图表</p>
     <ul class="chart-list"><li v-for="item in charts" :key="item.id"><RouterLink :to="`/charts/${encodeURIComponent(item.id)}`">{{ item.name }}</RouterLink><span>{{ visibilityLabels[item.visibility] }} · 所有者 #{{ item.ownerId }} · 版本 {{ item.version }} · 更新于：{{ item.updatedAt }}</span><el-button v-if="item.deleted && (isAdmin || item.ownerId === session.user?.id)" :disabled="busy" @click="manage('restore', item)">恢复图表</el-button></li></ul>
     <el-pagination v-if="total > 20" v-model:current-page="listPage" :page-size="20" :total="total" layout="prev, pager, next" @current-change="load"/>
   </div>
@@ -141,6 +145,7 @@ onBeforeUnmount(() => { generation++; controller?.abort(); clearTimeout(timer); 
     <div class="query-actions"><el-button native-type="submit" type="primary" :loading="busy">执行预览</el-button><el-button v-if="preview && result" :disabled="busy || !name.trim()" type="success" @click="save">{{ chart ? '确认发布新版本' : '确认保存图表' }}</el-button><el-button v-if="editing" :disabled="busy" @click="load">取消编辑</el-button></div>
   </form>
   <div v-if="chart && !editor" class="panel"><div class="panel-heading"><h2>当前版本 {{ chart.version }}</h2><div><el-button v-if="!chart.deleted" :disabled="busy" @click="refresh">重新刷新</el-button><el-button v-if="chart.canManage && !chart.deleted" :disabled="busy" @click="edit">编辑图表</el-button><el-button v-if="chart.canManage && !chart.deleted" :disabled="busy" @click="openSharing">管理共享</el-button><el-button v-if="chart.canManage && !chart.deleted" :disabled="busy" type="danger" @click="manage('delete')">移入回收站</el-button><el-button v-if="chart.canManage && chart.deleted" :disabled="busy" @click="manage('restore')">恢复图表</el-button></div></div><p>最近成功：{{ chart.lastSuccessAt ?? '尚无成功刷新' }}</p><p>{{ chart.definition.metricDescription }}</p><p class="scope-note">{{ chart.definition.timeRule.kind === 'NONE' ? '固定查询参数' : chart.definition.timeRule.kind === 'LAST_MONTH' ? `上一个完整自然月 · ${chart.definition.timeRule.timeZone}` : `最近 ${chart.definition.timeRule.days} 天 · ${chart.definition.timeRule.timeZone}` }} · {{ visibilityLabels[chart.visibility] }} · 所有者 #{{ chart.ownerId }}{{ chart.deleted ? ' · 已删除，无法刷新' : '' }}</p><p v-if="!chart.canManage" class="scope-note">只读共享图表。编辑、共享和删除仅限所有者或超管。</p></div>
+  <ExportPanel v-if="chart && !editor && !chart.deleted" :key="`${chart.id}:${chart.version}:${task?.id ?? ''}`" :chart="chart" :task-id="task?.status === 'SUCCEEDED' && result ? task.id : undefined" :truncated="result?.truncated ?? false"/>
   <div v-if="sharingOpen && chart?.canManage && !editor" class="panel chart-form" aria-label="图表管理">
     <h2>共享与管理</h2><label>共享范围<select v-model="visibility" aria-label="共享范围" :disabled="busy"><option value="PRIVATE">私有</option><option value="ALL">全员共享（仅有效登录用户）</option><option value="SPECIFIC">指定用户</option></select></label>
     <label v-if="visibility === 'SPECIFIC'">共享用户<select v-model="recipientIds" multiple aria-label="共享用户" :disabled="busy"><option v-for="user in recipients.filter(user => user.id !== chart!.ownerId)" :key="user.id" :value="user.id">{{ user.displayName || user.username }} ({{ user.username }})</option></select></label>

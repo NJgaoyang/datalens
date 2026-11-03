@@ -14,7 +14,7 @@ async function signOut() {
   finally { busy.value = false; }
 }
 const navigation = [
-  { path: '/', label: '工程概览', symbol: '◫' },
+  { path: '/workspace', label: '工作台', symbol: '◫' },
   { path: '/subjects', label: '业务主题', symbol: '▦' },
   { path: '/semantics', label: '业务语义与指标', symbol: '≡' },
   { path: '/queries', label: '安全 SQL 查询', symbol: '⌘' },
@@ -29,7 +29,7 @@ const navigation = [
   <RouterView v-if="route.meta.public" />
   <div v-else-if="session.user || route.meta.anonymous" class="app-shell">
     <aside class="sidebar" aria-label="主导航">
-      <RouterLink class="brand" to="/" aria-label="DataLens 首页">
+      <RouterLink class="brand" :to="session.user ? '/workspace' : '/'" aria-label="DataLens 首页">
         <span class="brand-mark">D</span><strong>DataLens</strong>
       </RouterLink>
       <div class="nav-caption">工作空间</div>
@@ -39,6 +39,10 @@ const navigation = [
         </RouterLink>
       </nav>
       <div class="sidebar-bottom">
+        <div v-if="session.user?.role === 'SUPER_ADMIN'" class="nav-caption">系统管理</div>
+        <RouterLink v-if="session.user?.role === 'SUPER_ADMIN'" to="/charts/admin" class="nav-item"><span class="nav-symbol" aria-hidden="true">▥</span>全部图表</RouterLink>
+        <RouterLink v-if="session.user?.role === 'SUPER_ADMIN'" to="/audit" class="nav-item"><span class="nav-symbol" aria-hidden="true">≡</span>查询与操作日志</RouterLink>
+        <RouterLink to="/" class="nav-item"><span class="nav-symbol" aria-hidden="true">◫</span>系统状态</RouterLink>
         <RouterLink v-if="session.user?.role === 'SUPER_ADMIN'" to="/settings" class="nav-item" :class="{ active: route.path === '/settings' }"><span class="nav-symbol" aria-hidden="true">⚙</span>用户管理</RouterLink>
         <RouterLink v-if="session.user?.role === 'SUPER_ADMIN'" to="/sources" class="nav-item" :class="{ active: route.path === '/sources' }"><span class="nav-symbol" aria-hidden="true">▤</span>数据源管理</RouterLink>
         <RouterLink v-if="session.user?.role === 'SUPER_ADMIN'" to="/model" class="nav-item" :class="{ active: route.path === '/model' }"><span class="nav-symbol" aria-hidden="true">◇</span>模型配置</RouterLink>

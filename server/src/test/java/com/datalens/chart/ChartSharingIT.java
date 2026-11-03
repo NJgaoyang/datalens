@@ -78,7 +78,7 @@ class ChartSharingIT {
             while(db.queryForObject("SELECT COUNT(*) FROM query_task WHERE source_id=? AND status IN ('QUEUED','RUNNING','CANCELLING')",Long.class,source)>0&&System.nanoTime()<until)Thread.sleep(20);
             assertThat(db.queryForObject("SELECT COUNT(*) FROM query_task WHERE source_id=? AND status IN ('QUEUED','RUNNING','CANCELLING')",Long.class,source)).isZero();
         }
-        for(String chart:charts){db.update("DELETE FROM chart_management_event WHERE chart_id=?",chart);db.update("DELETE FROM chart_share WHERE chart_id=?",chart);db.update("DELETE FROM chart_run WHERE chart_id=?",chart);db.update("DELETE FROM chart_revision WHERE chart_id=?",chart);db.update("DELETE FROM chart WHERE id=?",chart);}
+        for(String chart:charts){db.update("DELETE FROM chart_export_job WHERE chart_id=?",chart);db.update("DELETE FROM chart_export_grant WHERE chart_id=?",chart);db.update("DELETE FROM chart_management_event WHERE chart_id=?",chart);db.update("DELETE FROM chart_share WHERE chart_id=?",chart);db.update("DELETE FROM chart_run WHERE chart_id=?",chart);db.update("DELETE FROM chart_revision WHERE chart_id=?",chart);db.update("DELETE FROM chart WHERE id=?",chart);}
         for(long user:users){db.update("DELETE FROM chart_preview WHERE actor_id=?",user);db.update("DELETE FROM sys_audit_event WHERE actor_id=?",user);}
         db.update("DELETE FROM query_task WHERE source_id=?",source);
         db.update("DELETE FROM ds_subject_user WHERE subject_id=?",subject);db.update("DELETE FROM ds_subject_field WHERE subject_id=?",subject);db.update("DELETE FROM ds_subject WHERE id=?",subject);
@@ -250,4 +250,30 @@ class ChartSharingIT {
         // Administrators can still revoke a stale capability after its owner/source becomes invalid.
         var privateChart=share(admin,chart,"PRIVATE",List.of());assertThat(privateChart.path("visibility").asString()).isEqualTo("PRIVATE");
     }
+    String exportGrantPath(JsonNode chart){return "/api/v1/exports/charts/"+chart.path("id").asString()+"/grant";}
+    void exportGrant(JsonNode chart,boolean enabled) throws Exception {admin.ok("PUT",exportGrantPath(chart),Map.of("userId",viewer.id,"expectedChartVersion",chart.path("version").asLong(),"enabled",enabled));}
+    String exportReady(JsonNode chart,String task) throws Exception {
+        String id=viewer.ok("POST","/api/v1/exports",Map.of("chartId",chart.path("id").asString(),"taskId",task,"idempotencyKey",UUID.randomUUID().toString())).path("id").asString();
+        long until=System.nanoTime()+TimeUnit.SECONDS.toNanos(8);String state;
+        do{state=viewer.ok("GET","/api/v1/exports/"+id,null).path("status").asString();if(!Set.of("QUEUED","RUNNING").contains(state))break;Thread.sleep(20);}while(System.nanoTime()<until);
+        assertThat(state).isEqualTo("SUCCEEDED");return id;
+    }
+    @Test void controlledExportRequiresIndependentGrantAndRevocationClosesOldDownload() throws Exception {
+        var chart=share(owner,save(),"SPECIFIC",List.of(viewer.id));String task=refresh(viewer,chart);terminal(task,"SUCCEEDED");
+        var input=Map.of("chartId",chart.path("id").asString(),"taskId",task,"idempotencyKey",UUID.randomUUID().toString());
+        viewer.denied("POST","/api/v1/exports",input);owner.denied("PUT",exportGrantPath(chart),Map.of("userId",viewer.id,"expectedChartVersion",chart.path("version").asLong(),"enabled",true));
+        exportGrant(chart,true);String id=exportReady(chart,task),url="/api/v1/exports/"+id+"/download";
+        var response=viewer.send("GET",url,null,true);assertThat(response.statusCode()).isEqualTo(200);assertThat(response.body()).contains(EXACT);assertThat(response.headers().firstValue("Cache-Control").orElse("")).contains("no-store");assertThat(response.headers().firstValue("Content-Disposition").orElse("")).contains("attachment");
+        other.denied("GET",url,null);assertThat(new Browser(0).send("GET",url,null,false).statusCode()).isEqualTo(401);
+        exportGrant(chart,false);viewer.denied("GET",url,null);exportGrant(chart,true);viewer.denied("GET",url,null);
+        String next=exportReady(chart,task);share(owner,chart,"PRIVATE",List.of());viewer.denied("GET","/api/v1/exports/"+next+"/download",null);
+    }
+    @Test void exportRejectsOldSourceVersionAndSearchHidesRevokedPolicy() throws Exception {
+        var chart=share(owner,save(),"ALL",List.of());String task=refresh(viewer,chart);terminal(task,"SUCCEEDED");exportGrant(chart,true);String id=exportReady(chart,task);
+        db.update("UPDATE ds_source SET version=version+1 WHERE id=?",source);
+        viewer.denied("GET","/api/v1/exports/"+id,null);viewer.denied("GET","/api/v1/exports/"+id+"/download",null);
+        db.update("UPDATE ds_subject SET share_scope='NONE' WHERE id=?",subject);
+        assertThat(viewer.ok("GET","/api/v1/charts?scope=all&search=Sales",null).path("total").asLong()).isZero();viewer.denied("GET",path(chart),null);
+    }
+
 }

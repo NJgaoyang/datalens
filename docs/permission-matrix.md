@@ -51,8 +51,12 @@
 - 新内容发布、删除、恢复、所有权转移都恢复私有；恢复和转移生成新的不可变安全修订，旧任务不能复活。
 - 查询任务实际操作者始终是查看者；作者仅作为数据策略检查对象，不创建冒充作者的会话或审计。
 - 回收站无公开查看路径，所有者可恢复自己的图表，超管可恢复任意图表。转移仅超管可执行，目标需有效账号且有查询该定义的权限。
-- 导出尚未开放，任何查看或共享不自动获得导出权限。
+- M09 导出已实现独立超管授权，任何查看、所有权、超管角色或共享不自动获得导出权限。授权绑定图表版本和指定用户；授权每次改变推进代数，旧文件不会因重新授权而恢复可用。
 
 ## M06 semantic authorization
 
 Only active SUPER_ADMIN accounts may create/edit drafts, attest human review, publish, withdraw or inspect release history. Business owner text is descriptive and grants no role. Active users with current subject access may read/search only the current published snapshot; chart sharing does not grant semantic access. Every read rechecks source enabled state, effective allowed-minus-denied columns and their types. Changed scope or metadata invalidates publication until reviewed and republished. Draft updates never silently alter the current immutable publication. No public historical release endpoint or example execution endpoint exists.
+
+## M09 export delivery
+
+Only superadmins manage named-user export grants. Every requester, including admins and owners, requires a current explicit grant and chart data access. Jobs belong to the authenticated requester and auth version. Creation, asynchronous build, status and download check current chart/source/semantic access, immutable revision, chart version, grant generation and originating query source version. Downloads are private, expire in 15 minutes, and recheck after reading bytes. Audit records identify the actual acting account.

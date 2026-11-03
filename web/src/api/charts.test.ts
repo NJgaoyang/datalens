@@ -35,3 +35,8 @@ it('encodes management routes, includes optimistic versions and scopes, and send
   expect(mock.mock.calls[5]?.[0]).toBe('/api/v1/charts?page=3&size=20&scope=trash');
   expect(mock.mock.calls[6]?.[0]).toBe('/api/v1/charts/recipients');
 });
+it('keeps title search scoped and URL encodes literal search characters', async () => {
+ const mock=vi.fn().mockResolvedValue(response({items:[],total:0,page:1,size:20}));vi.stubGlobal('fetch',mock);
+ await listCharts(undefined,1,'shared','收入_%&ownerId=2');
+ expect(mock.mock.calls[0]?.[0]).toBe('/api/v1/charts?page=1&size=20&scope=shared&search=%E6%94%B6%E5%85%A5_%25%26ownerId%3D2');expect(mock.mock.calls[0]?.[1].method).toBe('GET');
+});

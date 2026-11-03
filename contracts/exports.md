@@ -1,0 +1,14 @@
+# M09 workbench and controlled CSV export
+
+All routes require a current authenticated account and standard CSRF protection for writes. Responses use the normal API envelope, except the authenticated CSV download. No anonymous bearer URL or filesystem/static download path exists.
+
+- `GET /api/v1/charts?scope=mine|shared|all|admin|trash&search=<literal>&page=1&size=20`: case-insensitive literal name search, max 100 characters. Current chart/owner/source/semantic permissions filter metadata before counts and pagination and again at delivery. No chart SQL is executed by listing/search. Trash remains management-only.
+- `GET /api/v1/exports/charts/{chartId}/permission`: `{allowed}`; independent export grant, including owner and superadmin.
+- `GET /api/v1/exports/charts/{chartId}/grants`: superadmin-only array `{userId,enabled}` for current chart version.
+- `PUT /api/v1/exports/charts/{chartId}/grant`: superadmin-only `{userId,expectedChartVersion,enabled}`. Enabling checks recipient active account and current view/data permission. Revocation remains possible if source policy is unavailable. Each mutation increments grant generation. Chart version changes invalidate grants until explicitly reissued.
+- `POST /api/v1/exports`: `{chartId,taskId,idempotencyKey}`. The task must be the caller's successfully completed chart refresh; no free SQL or alternate data source accepted. Truncated query results cannot be exported. Reuse an idempotency key only for identical chart/task input.
+- `GET /api/v1/exports/{id}`: `{id,chartId,taskId,status,errorCode,expiresAt}`. States QUEUED, RUNNING, SUCCEEDED, FAILED, INTERRUPTED. Job owner/auth-version, current chart revision/version, independent grant generation and original query source/version are rechecked.
+- `GET /api/v1/exports/{id}/download`: authenticated `text/csv;charset=UTF-8`, fixed safe attachment filename, `Cache-Control: no-store, private`, `X-Content-Type-Options: nosniff`. Reauthorization occurs before and after loading bytes. Old URLs cannot survive revocation and regrant.
+- `GET /api/v1/audit-events?page=1&size=20`: superadmin-only PageResult of `{id,actorId,action,resourceType,resourceId,outcome,requestId,occurredAt}`; no query/result/credential payloads.
+
+Exports expire 15 minutes after admission, are deleted on admission/startup and every minute, and are stored privately in MySQL. One dedicated export worker and queue of 16 are separate from page request and query execution pools. Persisted admission caps: 16 active globally, 128 unexpired globally and 8 per user. Output cap 4 MB, 1000 rows, 200 columns. Recovery marks uncertain jobs INTERRUPTED rather than replaying. CSV quotes all fields, doubles quotes, preserves exact decimal strings and neutralizes formula prefixes in both headers and values. Null becomes empty; export does not recalculate aggregates or pretend truncated data is complete.

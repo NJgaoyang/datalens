@@ -9,7 +9,7 @@ async function submit() {
   if (loading.value) return;
   if (!username.value.trim() || !password.value) { error.value = '请输入用户名和密码'; return; }
   loading.value = true; error.value = '';
-  try { await login(username.value.trim(), password.value); await router.replace('/'); }
+  try { await login(username.value.trim(), password.value); await router.replace('/workspace'); }
   catch (cause) { error.value = errorMessage(cause); }
   finally { password.value = ''; loading.value = false; }
 }

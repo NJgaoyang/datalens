@@ -8,6 +8,18 @@ Schema: additive V9 conversation/turn tables with unique owner/request and conve
 Security: owner identity from current session, repeated subject/publication rechecks, server-derived immutable definitions, query-purpose guards, durable admission/idempotency, locked save/publication checks, bounded history. Source/semantic revocation prevents stale output/save/refresh. Chart sharing/restore/transfer preserve semantic checks. Model responses never directly select SQL/tool names.
 
 ## Acceptance evidence
+
+## Exact-commit CI acceptance (2026-11-03)
+
+Accepted working-branch head: `f37377d41130a0dac8f014387c264a144d7f080c`. All three workflows are green:
+- Backend: https://github.com/NJgaoyang/datalens/actions/runs/41656669075 — full pinned Maven verify/package, **341 unit tests + 87 real MySQL/Redis integration tests**, including 14 ConversationIT cases; no failures/skips.
+- Frontend: https://github.com/NJgaoyang/datalens/actions/runs/41656668986 — clean install, **60 unit tests + 73 Chromium browser tests**, typecheck/build.
+- Docker: https://github.com/NJgaoyang/datalens/actions/runs/41656669169 — cold empty-database start, Nginx/API/security checks, same-volume recreation, migration/data preservation, Redis failure and recovery.
+
+Initial head `464d16ef72f74149679b26773ea1ec4bf092ef0f` had one test-only mismatch: disabled-account session invalidation also invalidated its CSRF token, so the next POST correctly returned 403 before authentication. Final test verifies stale-token 403 then fresh-anonymous-token 401. Production behavior was unchanged. The full canonical last-month/preview/save/refresh/revocation integration path passed.
+
+These CI results resolve the local Maven/MySQL/browser/Compose environmental limits below. Integration analytics JDBC and ModelGateway remain mocked: no real provider or StarRocks acceptance is claimed. No merge/deployment occurred. This evidence update is local for inclusion in the next module's publication.
+
 Executed locally on 2026-11-03:
 - Java 21.0.13 compiled every main and test source using cached resolved dependencies. Full `com.datalens.*Test` JUnit run: **341 passed, 0 failed/skipped**. Independent security reviewer repeated the full suite successfully. Explicit Mockito javaagent avoids unavailable sandbox self-attachment.
 - Fourteen new ConversationIT cases compile, with real HTTP/session/CSRF/MySQL/Redis persistence paths intended. They cover owner/admin isolation, idempotency/concurrency/recovery and canonical query → preview → last-month follow-up → explicit save → refresh/revocation. ModelGateway and analytics SourcePools JDBC are synthetic mocks. **These integration cases were not run locally** because disposable MySQL/Redis are unavailable.
@@ -19,8 +31,8 @@ Executed locally on 2026-11-03:
 Remaining implementation constraints: exact previous-month phrases are recognized deterministically; other modifications use clarification/unchanged reviewed metric selection. Up to 100 turns/conversation and 100 recent conversations are exposed. Metadata filtering scans ACL-visible chart definitions and performs no SQL queries; large asset counts need performance evaluation/optimization in M09/M10. Trash metadata remains owner/admin-only for recovery management. These checks are not production approval.
 
 ## Required remaining gates
-- Publication is authorized by the user for M07–M10 working-branch source/tests/docs, but still waits for parent coordination and M07 CI acceptance. No merge/deployment authorization.
-- Full pinned Maven/CI, actual MySQL/Redis integration, browser concurrent-user scenarios, empty/existing-volume Flyway and Compose startup/recovery require runnable infrastructure.
+- Working-branch publication and automated CI acceptance are complete at the exact head above. No merge/deployment authorization.
+- Full pinned Maven/CI, MySQL/Redis integration, browser scenarios and Compose cold/restart/recovery passed on the exact head above.
 - No provider contact or credentials installed. Real provider protocol/TLS/billing not tested.
 - StarRocks live setup was deferred by user; real query cancellation/timeouts, isolation, data freshness and independently verified business question results remain pending, regardless of mock success.
 - M10 independent business evaluation and production readiness are not replaced by this module's tests.

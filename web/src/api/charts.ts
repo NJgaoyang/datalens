@@ -11,7 +11,7 @@ export interface ChartRecipient { id: number; username: string; displayName?: st
 export interface ChartSummary { visibility: ChartVisibility; deleted: boolean; id: string; name: string; ownerId: number; version: number; revisionId: string; updatedAt: string }
 export interface SavedChart { canManage: boolean; visibility: ChartVisibility; userIds: number[]; deleted: boolean; id: string; name: string; ownerId: number; version: number; revisionId: string; definition: ChartDefinition; lastSuccessAt: string|null; latestTaskId?: string|null }
 const root = '/api/v1/charts';
-export const listCharts = async (signal?: AbortSignal, page = 1, scope: ChartScope = 'mine') => (await getApi<{items: ChartSummary[]; total: number; page: number; size: number}>(`${root}?page=${page}&size=20&scope=${scope}`, signal)).data;
+export const listCharts = async (signal?: AbortSignal, page = 1, scope: ChartScope = 'mine', search = '') => (await getApi<{items: ChartSummary[]; total: number; page: number; size: number}>(`${root}?page=${page}&size=20&scope=${scope}${search ? `&search=${encodeURIComponent(search)}` : ''}`, signal)).data;
 export const readChart = async (id: string, signal?: AbortSignal) => (await getApi<SavedChart>(`${root}/${encodeURIComponent(id)}`, signal)).data;
 export const createPreview = async (definition: ChartDefinition, idempotencyKey: string, signal?: AbortSignal) => (await requestApi<Preview>(`${root}/previews`, 'POST', { definition, idempotencyKey }, signal)).data;
 export const readPreview = async (id: string, signal?: AbortSignal) => (await getApi<Preview>(`${root}/previews/${encodeURIComponent(id)}`, signal)).data;

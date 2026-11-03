@@ -14,6 +14,7 @@ async function fixtures(page: Page, role: 'USER' | 'SUPER_ADMIN' = 'USER', initi
     if (path === '/api/v1/auth/logout' || path === '/api/v1/auth/password') { loggedIn = false; return route.fulfill({ json: envelope(null) }); }
     if (path === '/api/v1/system/info') return route.fulfill({ json: envelope({ name: 'DataLens', version: '0.1.0', stage: 'M01', enabledModules: ['foundation', 'identity'] }) });
     if (!loggedIn) return route.fulfill({ status: 401, json: envelope(null, 'UNAUTHORIZED', '请登录') });
+    if (path === '/api/v1/charts') return route.fulfill({ json: envelope({items:[],total:0,page:1,size:20}) });
     if (path === '/api/v1/auth/me') return route.fulfill({ json: envelope(current) });
     if (path === '/api/v1/admin/users') return route.fulfill({ json: envelope(method === 'GET' ? { items: [admin, user], total: 2, page: 1, size: 20 } : user) });
     if (path.startsWith('/api/v1/admin/users/')) return route.fulfill({ json: envelope(null) });
@@ -29,11 +30,11 @@ test('anonymous redirect, login, no persisted credentials, logout and browser ba
   await page.getByLabel('用户名', { exact: true }).fill('alice');
   await page.getByLabel('密码', { exact: true }).fill('example-password');
   await page.getByRole('button', { name: '登录', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '从可靠的基础开始' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '工作台', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: '用户管理' })).toHaveCount(0);
   expect(await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage } }))).toEqual({ local: {}, session: {} });
   await page.goto('/settings');
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/workspace$/);
   await expect(page.getByRole('heading', { name: '用户管理' })).toHaveCount(0);
   await page.getByRole('button', { name: '退出登录' }).click();
   await expect(page).toHaveURL(/\/login$/);

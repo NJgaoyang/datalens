@@ -70,3 +70,33 @@ export function getApi<T>(path: string, signal?: AbortSignal) { return requestAp
 export function errorMessage(error: unknown) {
   return error instanceof ApiError ? `${error.message}${error.requestId ? `（请求编号：${error.requestId}）` : ''}` : error instanceof Error ? error.message : '操作失败，请重试';
 }
+
+/** Authenticated same-origin file delivery. Never treat an error/login page as a file. */
+export async function downloadApi(path: string, signal?: AbortSignal): Promise<Blob> {
+  if (!path.startsWith('/api/v1/') || path.includes('\\')) throw new ApiError('只允许同源业务接口', 'INVALID_PATH');
+  const response = await fetch(path, { credentials: 'same-origin', cache: 'no-store', redirect: 'error',
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000), headers: { Accept: 'text/csv' } });
+  if (signal?.aborted) throw signal.reason;
+  if (response.status === 401) { clearCsrf(); onUnauthorized?.(); }
+  if (!response.ok) {
+    if (response.status === 403) clearCsrf();
+    let body: unknown; try { body = await response.json(); } catch { /* Use safe generic error. */ }
+    throw new ApiError(isEnvelope(body) ? body.message : '文件下载失败，请重新检查权限和有效期', isEnvelope(body) ? body.code : 'DOWNLOAD_FAILED', response.headers.get('X-Request-ID') ?? undefined, response.status);
+  }
+  if (!/^text\/csv(?:;|$)/i.test(response.headers.get('Content-Type') ?? '')) throw new ApiError('下载响应格式无效', 'INVALID_RESPONSE');
+  const maxBytes = 8_000_000;
+  if (Number(response.headers.get('Content-Length')) > maxBytes) { await response.body?.cancel(); throw new ApiError('导出文件超过大小限制', 'EXPORT_TOO_LARGE'); }
+  const reader = response.body?.getReader();
+  if (!reader) throw new ApiError('下载响应为空', 'INVALID_RESPONSE');
+  const chunks: Uint8Array<ArrayBuffer>[] = []; let bytes = 0;
+  try {
+    while (true) {
+      const {done,value} = await reader.read(); if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) { await reader.cancel(); throw new ApiError('导出文件超过大小限制', 'EXPORT_TOO_LARGE'); }
+      chunks.push(new Uint8Array(value));
+    }
+  } finally { reader.releaseLock(); }
+  if (signal?.aborted) throw signal.reason;
+  return new Blob(chunks, { type: 'text/csv;charset=utf-8' });
+}

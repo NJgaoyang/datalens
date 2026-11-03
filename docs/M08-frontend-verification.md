@@ -37,3 +37,7 @@ The final supplied cases include ten conversation browser scenarios (creation/du
 Primary implementation: `web/src/api/conversations.ts`, `web/src/views/ConversationView.vue`, `web/src/router.ts`, `web/src/api/http.ts`, `web/src/api/charts.ts`, and `web/src/views/ChartsView.vue`. Tests: `web/src/api/conversations.test.ts`, `web/src/api/http.test.ts`, `web/e2e/conversations.spec.ts`, and the added case in `web/e2e/charts.spec.ts`.
 
 Runnable-browser verification, real API orchestration, live provider/data correctness, exact-commit CI, and production performance remain separate gates. No provider credential was used, no real model provider was contacted, and no push, merge or deployment was performed by this frontend task.
+
+## CI resolution
+
+Exact accepted head `f37377d41130a0dac8f014387c264a144d7f080c`: https://github.com/NJgaoyang/datalens/actions/runs/41656668986 passed clean install, **60 unit tests**, typecheck/build and **73 Chromium browser tests**. This resolves the local browser-launch limitation above. The browser scenarios use controlled API fixtures; real backend MySQL/Redis orchestration is separately covered by backend CI, not live provider/StarRocks compatibility.

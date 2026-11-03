@@ -47,7 +47,7 @@ const stages = [
 <template>
   <section class="page">
     <div class="page-heading">
-      <div><div class="eyebrow">DATALENS / FOUNDATION</div><h1>从可靠的基础开始</h1><p class="subtitle">独立智能问数与动态图表平台。当前已交付工程基础、账号权限与数据源元数据管理，不展示模拟业务数据。</p></div>
+      <div><div class="eyebrow">DATALENS / FOUNDATION</div><h1>从可靠的基础开始</h1><p class="subtitle">独立智能问数与动态图表平台。已提供受控查询、动态图表、共享、多轮问数和工作台。此页只展示真实系统状态。</p></div>
       <el-button :loading="loading" @click="reload">刷新连接状态</el-button>
     </div>
 
@@ -58,7 +58,7 @@ const stages = [
     <div class="status-grid" aria-live="polite">
       <section class="status-card"><div class="card-label">应用接口</div><strong>{{ loading ? '检查中' : info ? '已连接' : '未连接' }}</strong><p>{{ info ? `${info.name} · ${info.version}` : '读取真实后端状态，不使用本地模拟结果' }}</p></section>
       <section class="status-card"><div class="card-label">基础依赖</div><strong>{{ loading ? '检查中' : readiness === true ? '已就绪' : '未就绪' }}</strong><p>MySQL 8.4 / Redis 实际健康检查</p></section>
-      <section class="status-card"><div class="card-label">分析与模型</div><strong>尚未接入</strong><p>StarRocks 在 M02 接入；模型在 M07 接入</p></section>
+      <section class="status-card"><div class="card-label">分析与模型</div><strong>按配置启用</strong><p>外部服务状态不由此健康检查推断，请在相应管理页验证连接。</p></section>
     </div>
 
     <div class="content-grid">
@@ -73,7 +73,7 @@ const stages = [
         <h3>先有权限，再有智能</h3><p>默认拒绝未开放的接口。使用服务端会话认证与超管授权；没有默认密码或自行注册入口。</p>
       </section>
     </div>
-    <p class="scope-note">当前范围：M00 工程骨架、M01 身份权限与 M02 数据源及元数据管理。真实 StarRocks 集群验收仍待完成；其余规划页面不代表功能已经实现。</p>
+    <p class="scope-note">真实 StarRocks、模型服务和生产环境需独立验收；系统接口健康不代表分析数据与外部模型已验证。</p>
   </section>
 </template>
 

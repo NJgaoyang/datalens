@@ -37,20 +37,23 @@ public class ChartService {
     public Result previewResult(String id){var p=ownPreview(id);if(p.taskId()==null)throw ChartRules.invalid("预览尚未完成");var result=queries.result(p.taskId());ChartRules.validate(definition(p.definition()).spec(),result);ownPreview(id);return result;}
     public Summary save(Save input,String requestId){var p=ownPreview(input.previewId());previewResult(p.id());return store.save(permissions.current(),p,input.name().trim(),requestId,()->{ownPreview(p.id());previewResult(p.id());});}
     public Summary publish(String id,Publish input,String requestId){owned(id);var p=ownPreview(input.previewId());previewResult(p.id());return store.publish(permissions.current(),id,p,input.name().trim(),input.expectedVersion(),requestId,()->{ownPreview(p.id());previewResult(p.id());charts.publication(permissions.current(),id,definition(p.definition()));});}
-    public PageResult<Summary> list(String scope,int page,int size){
-        var actor=permissions.current();if("trash".equals(scope))return store.list(actor,scope,page,size);
+    public PageResult<Summary> list(String scope,int page,int size){return list(scope,page,size,"");}
+    public PageResult<Summary> list(String scope,int page,int size,String search){
+        if(search==null)search="";if(search.length()>100)throw ChartRules.invalid("搜索词最长100字符");final String needle=search.strip().toLowerCase(java.util.Locale.ROOT);
+        var actor=permissions.current();if("trash".equals(scope)&&needle.isEmpty())return store.list(actor,scope,page,size);
         var visible=new ArrayList<Summary>();int batch=1;PageResult<Summary> rows;
         do{rows=store.list(actor,scope,batch++,200);for(var c:rows.items()){
-            try{var d=definition(store.definition(c.id(),c.revisionId()));if(d.semanticBinding()!=null)charts.executionOwner(actor,c.id(),c.revisionId());else charts.view(actor,c.id());visible.add(c);}
+            if(!c.name().toLowerCase(java.util.Locale.ROOT).contains(needle))continue;
+            try{if("trash".equals(scope)){charts.manage(actor,c.id(),true);visible.add(c);continue;}charts.executionOwner(actor,c.id(),c.revisionId());visible.add(c);}
             catch(AccessDeniedException|com.datalens.common.web.DomainException denied){/* Exclude revoked semantic assets before counts and pagination. */}
         }}while((long)(batch-1)*200<rows.total());
         // Final delivery recheck, including metadata loaded in earlier pages.
-        visible.removeIf(c->{try{var current=charts.view(actor,c.id());if(!current.revisionId().equals(c.revisionId())||current.ownerId()!=c.ownerId()||current.version()!=c.version())return true;var d=definition(store.definition(c.id(),c.revisionId()));if(d.semanticBinding()!=null)charts.executionOwner(actor,c.id(),c.revisionId());return false;}catch(AccessDeniedException|com.datalens.common.web.DomainException denied){return true;}});
+        visible.removeIf(c->{try{var current="trash".equals(scope)?charts.manage(actor,c.id(),true):charts.view(actor,c.id());if(!current.revisionId().equals(c.revisionId())||current.ownerId()!=c.ownerId()||current.version()!=c.version())return true;if(!"trash".equals(scope))charts.executionOwner(actor,c.id(),c.revisionId());return false;}catch(AccessDeniedException|com.datalens.common.web.DomainException denied){return true;}});
         permissions.current();int from=(int)Math.min((long)(page-1)*size,visible.size()),to=Math.min(from+size,visible.size());return new PageResult<>(visible.subList(from,to),visible.size(),page,size);
     }
-    public Detail detail(String id){var c=viewed(id);var actor=permissions.current();var d=definition(store.definition(id,c.revisionId()));boolean manage=charts.canManage(actor,c);if(d.semanticBinding()!=null)charts.executionOwner(actor,id,c.revisionId());
+    public Detail detail(String id){var c=viewed(id);var actor=permissions.current();var d=definition(store.definition(id,c.revisionId()));boolean manage=charts.canManage(actor,c);if(!manage||d.semanticBinding()!=null)charts.executionOwner(actor,id,c.revisionId());
         if(!manage)d=new Definition("","",List.of(),d.timeRule(),d.metricDescription(),d.spec());
-        var latest=viewed(id);if(latest.version()!=c.version()||latest.ownerId()!=c.ownerId()||!latest.revisionId().equals(c.revisionId()))throw ChartStore.conflict();return new Detail(c.id(),c.name(),c.ownerId(),c.version(),c.revisionId(),d,store.latestTask(id,c.revisionId(),actor.id()),store.lastSuccess(id,c.revisionId(),actor.id()),c.visibility(),manage?store.shares(id):List.of(),c.deleted(),manage);}
+        var latest=viewed(id);if(latest.version()!=c.version()||latest.ownerId()!=c.ownerId()||!latest.revisionId().equals(c.revisionId()))throw ChartStore.conflict();if(!manage||d.semanticBinding()!=null)charts.executionOwner(actor,id,c.revisionId());return new Detail(c.id(),c.name(),c.ownerId(),c.version(),c.revisionId(),d,store.latestTask(id,c.revisionId(),actor.id()),store.lastSuccess(id,c.revisionId(),actor.id()),c.visibility(),manage?store.shares(id):List.of(),c.deleted(),manage);}
     public TaskView refresh(String id,Refresh input,String requestId){var c=viewed(id);var d=definition(store.definition(id,c.revisionId()));
         var run=store.createRun(permissions.current(),c,input.idempotencyKey(),encodeParameters(ChartRules.resolve(d,clock)));
         // A retry resolves the original immutable revision and dates, even after midnight or a new publication.
@@ -58,6 +61,8 @@ public class ChartService {
         var task=queries.submitForPurpose(new Submit(d.subjectId(),d.sql(),parameters(run.params()),"cr_"+run.id()),new QueryContext("CHART",id,run.revisionId()),requestId);
         store.bindRun(run.id(),task.id());return task;
     }
+    /** Reauthorize a viewer-owned refresh without loading its payload. */
+    public void authorizeResultTask(String id,String taskId){viewed(id);store.taskRun(id,taskId,permissions.current().id());var task=queries.get(taskId);if(!"SUCCEEDED".equals(task.status()))throw ChartRules.invalid("查询尚未成功完成");viewed(id);}
     public Result result(String id,String taskId){viewed(id);var run=store.taskRun(id,taskId,permissions.current().id());var result=queries.result(taskId);
         ChartRules.validate(definition(store.definition(id,run.revisionId())).spec(),result);viewed(id);var task=queries.get(taskId);store.success(run.id(),task.finishedAt());return result;}
     public Summary sharing(String id,Sharing input,String requestId){var actor=permissions.current();charts.sharing(actor,id,input);return store.manage(actor,id,input.expectedVersion(),"SHARE",input.visibility(),input.userIds(),null,()->charts.sharing(permissions.current(),id,input),requestId);}

@@ -19,6 +19,8 @@ export const router = createRouter({
     { path: '/login', component: LoginView, meta: { title: '登录', public: true } },
     { path: '/account/password', component: PasswordView, meta: { title: '修改密码' } },
     { path: '/', component: FoundationView, meta: { title: '工程概览', anonymous: true } },
+    { path: '/workspace', component: () => import('./views/WorkbenchView.vue'), meta: { title: '工作台' } },
+    { path: '/audit', component: () => import('./views/AuditView.vue'), meta: { title: '查询与操作日志', admin: true } },
     { path: '/ask', component: ConversationView, meta: { title: '智能问数' } },
     { path: '/ask/:id', component: ConversationView, meta: { title: '智能问数' } },
     { path: '/charts/mine', component: ChartsView, meta: { title: '我的图表' } },
@@ -47,7 +49,7 @@ router.beforeEach(async (to) => {
     session.error = cause instanceof ApiError && cause.status === 401 ? '请登录后继续' : errorMessage(cause);
     return to.meta.anonymous ? true : '/login';
   }
-  if (to.meta.admin && session.user?.role !== 'SUPER_ADMIN') return '/';
+  if (to.meta.admin && session.user?.role !== 'SUPER_ADMIN') return '/workspace';
   return true;
 });
 setUnauthorizedHandler(() => {

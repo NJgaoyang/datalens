@@ -12,7 +12,7 @@ public class ChartController {
     private final ChartService service;
     public ChartController(ChartService service){this.service=service;}
     private <T> ApiResponse<T> response(T value,HttpServletRequest r){return ApiResponse.success(value,RequestIdFilter.id(r));}
-    @GetMapping public ApiResponse<PageResult<Summary>> list(@RequestParam(defaultValue="mine") String scope,@Valid @ModelAttribute PageQuery page,HttpServletRequest r){return response(service.list(scope,page.page(),page.size()),r);}
+    @GetMapping public ApiResponse<PageResult<Summary>> list(@RequestParam(defaultValue="mine") String scope,@RequestParam(defaultValue="") String search,@Valid @ModelAttribute PageQuery page,HttpServletRequest r){return response(service.list(scope,page.page(),page.size(),search),r);}
     @PostMapping("/previews") public ApiResponse<Preview> preview(@Valid @RequestBody PreviewInput input,HttpServletRequest r){return response(service.preview(input,RequestIdFilter.id(r)),r);}
     @GetMapping("/previews/{id}") public ApiResponse<Preview> preview(@PathVariable String id,HttpServletRequest r){return response(service.preview(id),r);}
     @GetMapping("/previews/{id}/result") public ApiResponse<Result> previewResult(@PathVariable String id,HttpServletRequest r){return response(service.previewResult(id),r);}
