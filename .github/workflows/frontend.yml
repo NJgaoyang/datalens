@@ -1,0 +1,41 @@
+name: Frontend verification
+on:
+  push:
+    branches: [main, dev20261103]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Require committed dependency lock
+        run: test -f package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - name: Reports and UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-verification
+          path: |
+            web/playwright-report/
+            web/test-results/
+            web/dist/
+          if-no-files-found: warn
+          retention-days: 7
