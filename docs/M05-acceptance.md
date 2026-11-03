@@ -28,3 +28,7 @@ Owner-scope validation added to admin publication; detail rejects concurrent own
 ## Outstanding external gates
 
 Real StarRocks 3.3.22 TLS, execution/cancellation/timeout/resource limits and real-data reopen/freshness remain pending from M02–M04. Passing mocked analytics and MySQL CI cannot establish them. M05 code completion is not production readiness.
+
+## Initial CI and route correction
+
+Commit bd371b858c42ba83a9201e81729c846d255bcf97 passed frontend (37 unit + 43 Chromium scenarios) and disposable Compose cold-start/restart gates. Backend passed 175 unit tests and 45 existing integration tests, but all 10 new sharing HTTP cases exposed missing explicit management routes in the deny-by-default security chain. Corrected the route allowlist without weakening resource checks or CSRF; ownership transfer additionally requires SUPER_ADMIN at the HTTP boundary. Full CI is rerun on the correction commit.

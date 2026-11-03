@@ -29,7 +29,10 @@ public class SecurityConfiguration {
                 .requestMatchers(HttpMethod.POST,"/api/v1/query-tasks","/api/v1/query-tasks/*/cancel").authenticated()
                 .requestMatchers(HttpMethod.GET,"/api/v1/query-tasks/*","/api/v1/query-tasks/*/result").authenticated()
                 .requestMatchers(HttpMethod.GET,"/api/v1/charts","/api/v1/charts/*","/api/v1/charts/previews/*","/api/v1/charts/previews/*/result","/api/v1/charts/*/refreshes/*/result").authenticated()
-                .requestMatchers(HttpMethod.POST,"/api/v1/charts","/api/v1/charts/previews","/api/v1/charts/*/revisions","/api/v1/charts/*/refreshes").authenticated()
+                .requestMatchers(HttpMethod.POST,"/api/v1/charts/*/owner").hasRole("SUPER_ADMIN")
+                .requestMatchers(HttpMethod.PUT,"/api/v1/charts/*/sharing").authenticated()
+                .requestMatchers(HttpMethod.DELETE,"/api/v1/charts/*").authenticated()
+                .requestMatchers(HttpMethod.POST,"/api/v1/charts","/api/v1/charts/previews","/api/v1/charts/*/revisions","/api/v1/charts/*/refreshes","/api/v1/charts/*/restore").authenticated()
                 .anyRequest().denyAll());
         http.formLogin(AbstractHttpConfigurer::disable).httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable).requestCache(AbstractHttpConfigurer::disable);
