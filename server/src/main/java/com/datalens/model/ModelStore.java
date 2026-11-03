@@ -22,7 +22,9 @@ public class ModelStore {
     @Transactional(propagation=Propagation.REQUIRES_NEW)
     public void reserve(String id,long actor,String subject,long configVersion,long semanticVersion,String digest,long tokens,long budget){
         String date=LocalDate.now(ZoneOffset.UTC).toString();
-        db.update("INSERT IGNORE INTO model_daily_budget(budget_date,reserved_tokens) VALUES(?,0)",date);
+        // Duplicate-key no-op UPDATE takes an exclusive row lock immediately. INSERT IGNORE
+        // can leave competing shared locks and deadlock when both reservations upgrade to UPDATE.
+        db.update("INSERT INTO model_daily_budget(budget_date,reserved_tokens) VALUES(?,0) ON DUPLICATE KEY UPDATE reserved_tokens=reserved_tokens",date);
         if(db.update("UPDATE model_daily_budget SET reserved_tokens=reserved_tokens+? WHERE budget_date=? AND reserved_tokens<=?",tokens,date,budget-tokens)!=1)
             throw new DomainException(429,"MODEL_BUDGET_EXCEEDED","模型每日令牌预算不足");
         db.update("INSERT INTO model_call(id,actor_id,subject_id,config_version,semantic_version,semantic_digest,reserved_tokens,status) VALUES(?,?,?,?,?,?,?,'RUNNING')",id,actor,subject,configVersion,semanticVersion,digest,tokens);
