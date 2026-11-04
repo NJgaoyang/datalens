@@ -20,7 +20,7 @@ const topValue = computed(() => {
   const values: { label: string; value: string; scaled: bigint; scale: number }[] = [];
   for (const row of props.result.rows) {
     const value = row[measureIndex], label = row[dimIndex];
-    if (!value || label === null) return null;
+    if (!value || label == null) return null;
     const match = /^([+-]?)(\d+)(?:\.(\d+))?$/.exec(value);
     if (!match) return null;
     const scale = (match[3] || '').length;
@@ -70,7 +70,7 @@ async function moveTab(event: KeyboardEvent) {
       <dl v-else class="result-facts"><dt>查询任务</dt><dd>{{ turn.taskId || '未提供' }}</dd><dt>返回上限</dt><dd>{{ result.rowLimit }} 行{{ result.truncated ? '，结果已截断' : '' }}</dd><dt>指标字段</dt><dd>{{ turn.spec?.measures.join('、') || '未提供' }}</dd><dt>查询说明</dt><dd>所有字段均属于当前授权范围。切换图表和表格不会重新查询，数值表保留原始精度。</dd><dt>历史记录</dt><dd>当前展示本轮查询预览；打开已保存图表时才会触发独立刷新。</dd></dl>
       <div v-if="tab !== 'details' && result.rows.length" class="result-insight"><span class="result-insight-icon" aria-hidden="true">✦</span><strong>数据洞察</strong><div><p>{{ facts }}；请根据实际口径理解结果。</p><p v-if="topValue">在本次完整返回的数据中，{{ topValue.label }} 的 {{ topValue.measure }} 最大，为 {{ topValue.value }}。</p><p v-if="result.truncated">当前结果不完整，不提供整体排名或占比结论。</p></div></div>
     </div>
-    <footer class="result-time">查询完成时间：{{ turn.queryTime || '尚未完成' }}<span>· 图表仅用于数据展示</span></footer>
+    <footer class="result-time"><span>查询完成时间：{{ turn.queryTime || '尚未完成' }}</span><span>· 图表仅用于数据展示</span></footer>
   </section>
 </template>
 <style scoped>
