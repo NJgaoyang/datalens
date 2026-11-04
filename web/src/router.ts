@@ -12,17 +12,18 @@ const ChartsView = () => import('./views/ChartsView.vue');
 const ModelView = () => import('./views/ModelView.vue');
 const SemanticsView = () => import('./views/SemanticsView.vue');
 const ConversationView = () => import('./views/ConversationView.vue');
-
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/login', component: LoginView, meta: { title: '登录', public: true } },
     { path: '/account/password', component: PasswordView, meta: { title: '修改密码' } },
-    { path: '/', component: FoundationView, meta: { title: '工程概览', anonymous: true } },
+    { path: '/', redirect: '/ask' },
+    { path: '/system', component: FoundationView, meta: { title: '系统状态', admin: true } },
     { path: '/workspace', component: () => import('./views/WorkbenchView.vue'), meta: { title: '工作台' } },
     { path: '/audit', component: () => import('./views/AuditView.vue'), meta: { title: '查询与操作日志', admin: true } },
     { path: '/ask', component: ConversationView, meta: { title: '智能问数' } },
     { path: '/ask/:id', component: ConversationView, meta: { title: '智能问数' } },
+    { path: '/charts', redirect: '/charts/mine' },
     { path: '/charts/mine', component: ChartsView, meta: { title: '我的图表' } },
     { path: '/charts/new', component: ChartsView, meta: { title: '新建私有图表' } },
     { path: '/charts/shared', component: ChartsView, meta: { title: '共享给我' } },
@@ -31,29 +32,26 @@ export const router = createRouter({
     { path: '/charts/trash', component: ChartsView, meta: { title: '图表回收站' } },
     { path: '/charts/:id', component: ChartsView, meta: { title: '图表详情' } },
     { path: '/sources', component: SourcesView, meta: { title: '数据源管理', admin: true } },
-    { path: '/queries', component: QueryView, meta: { title: '安全 SQL 查询' } },
+    { path: '/queries', component: QueryView, meta: { title: 'SQL 工作区' } },
     { path: '/semantics', component: SemanticsView, meta: { title: '业务语义与指标' } },
     { path: '/subjects', component: SubjectsView, meta: { title: '业务主题' } },
     { path: '/model', component: ModelView, meta: { title: '模型配置', admin: true } },
     { path: '/settings', component: UsersView, meta: { title: '用户管理', admin: true } },
-    { path: '/:pathMatch(.*)*', redirect: '/' },
+    { path: '/:pathMatch(.*)*', redirect: '/ask' },
   ],
 });
-
-
 router.beforeEach(async (to) => {
   if (to.meta.public) return true;
   try { await loadSession(); }
   catch (cause) {
-    clearSession();
-    session.error = cause instanceof ApiError && cause.status === 401 ? '请登录后继续' : errorMessage(cause);
-    return to.meta.anonymous ? true : '/login';
+    clearSession(); session.error = cause instanceof ApiError && cause.status === 401 ? '请登录后继续' : errorMessage(cause);
+    return '/login';
   }
+  // Keep the existing unauthorized-admin fallback; normal login and home are question-first.
   if (to.meta.admin && session.user?.role !== 'SUPER_ADMIN') return '/workspace';
   return true;
 });
 setUnauthorizedHandler(() => {
-  clearSession();
-  session.error = '登录已过期，请重新登录';
+  clearSession(); session.error = '登录已过期，请重新登录';
   if (router.currentRoute.value.path !== '/login') void router.replace('/login');
 });

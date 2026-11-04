@@ -27,11 +27,9 @@ class FoundationIT {
     @Autowired com.datalens.query.QueryLease queryLease;
     @Autowired org.springframework.boot.health.actuate.endpoint.HealthEndpoint health;
     private MockMvc mvc;
-
     @BeforeEach void setUp() {
         mvc = MockMvcBuilders.webAppContextSetup(context).addFilters(traceFilter, springSecurityFilterChain).build();
     }
-
     @Test void realMySqlMigrationAndMapperWorkWithoutModelOrStarRocks() throws Exception {
         mvc.perform(get("/api/v1/system/info")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("DataLens"))
@@ -39,45 +37,41 @@ class FoundationIT {
                 .andExpect(jsonPath("$.data.enabledModules.length()").value(10));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sys_platform_setting", Integer.class)).isEqualTo(8);
     }
-
     @Test void migrationIsRepeatableWithoutReseeding() {
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         assertThat(flyway.migrate().migrationsExecuted).isZero();
     }
-
     @Test void undisclosedRoutesAreDeniedByDefault() throws Exception {
-        mvc.perform(get("/api/v1/charts")).andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+        mvc.perform(get("/api/v1/charts")).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
         mvc.perform(get("/actuator/env")).andExpect(status().isUnauthorized());
     }
-
+    @Test void relocatedStatusAndQuestionDeepLinksServeOnlyTheSpaShell() throws Exception {
+        for (String path : new String[]{"/", "/ask", "/ask/example-id", "/system", "/charts/mine"}) {
+            mvc.perform(get(path)).andExpect(status().isOk()).andExpect(forwardedUrl("/index.html"));
+        }
+        mvc.perform(get("/api/v1/conversations")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/admin/users")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/system")).andExpect(status().isForbidden());
+    }
     @Test void unsafeRequestsHaveCsrfProtection() throws Exception {
         mvc.perform(post("/api/v1/system/info")).andExpect(status().isForbidden());
     }
-
     @Test void healthProbesAreRealAndDoNotExposeDependencyDetails() throws Exception {
-        mvc.perform(get("/actuator/health/liveness")).andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("UP"));
-        mvc.perform(get("/actuator/health/readiness")).andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("UP")).andExpect(jsonPath("$.components").doesNotExist());
+        mvc.perform(get("/actuator/health/liveness")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("UP"));
+        mvc.perform(get("/actuator/health/readiness")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("UP")).andExpect(jsonPath("$.components").doesNotExist());
     }
-
     @Test void lostLeaseAloneMakesReadinessFailEvenWithHealthyDatabase() throws Exception {
-        // Disposable idle integration process only: deliberately release its advisory lock.
         queryLease.close();
         try {
             assertThat(jdbc.queryForObject("SELECT 1", Integer.class)).isEqualTo(1);
             assertThat(health.healthForPath("db").getStatus().getCode()).isEqualTo("UP");
             assertThat(health.healthForPath("queryExecutor").getStatus().getCode()).isEqualTo("DOWN");
-            mvc.perform(get("/actuator/health/readiness")).andExpect(status().isServiceUnavailable())
-                    .andExpect(jsonPath("$.status").value("DOWN")).andExpect(jsonPath("$.components").doesNotExist());
+            mvc.perform(get("/actuator/health/readiness")).andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.status").value("DOWN")).andExpect(jsonPath("$.components").doesNotExist());
             mvc.perform(get("/actuator/health/liveness")).andExpect(status().isOk());
         } finally { queryLease.acquire(); }
         mvc.perform(get("/actuator/health/readiness")).andExpect(status().isOk());
     }
-
     @Test void mysqlSessionTablesExist() {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('SPRING_SESSION','SPRING_SESSION_ATTRIBUTES')",Integer.class)).isEqualTo(2);
     }
 }
-

@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class SpaController {
     @GetMapping({
-        "/", "/login", "/workspace", "/account/password", "/audit",
+        "/", "/login", "/workspace", "/system", "/account/password", "/audit",
         "/ask", "/ask/{conversationId:[A-Za-z0-9-]+}",
         "/charts", "/charts/{chartId:[A-Za-z0-9-]+}",
         "/sources", "/queries", "/semantics", "/subjects", "/model", "/settings"

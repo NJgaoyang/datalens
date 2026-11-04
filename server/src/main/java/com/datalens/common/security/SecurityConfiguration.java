@@ -20,9 +20,9 @@ public class SecurityConfiguration {
     @Bean SecurityFilterChain securityFilterChain(HttpSecurity http,ApiErrorWriter errors,PermissionService permissions,
             SecurityContextRepository contexts,CsrfTokenRepository csrf) throws Exception {
         http.authorizeHttpRequests(auth -> auth
-                // Public Vue shell; API access is always enforced independently.
+                // Public Vue shell only, including the relocated status page; API rules are unchanged.
                 .requestMatchers(HttpMethod.GET,"/","/index.html","/assets/**",
-                    "/login","/workspace","/account/password","/audit","/ask","/ask/*",
+                    "/login","/workspace","/system","/account/password","/audit","/ask","/ask/*",
                     "/charts","/charts/*","/sources","/queries","/semantics",
                     "/subjects","/model","/settings").permitAll()
                 .requestMatchers(HttpMethod.GET,"/api/v1/system/info","/actuator/health/liveness","/actuator/health/readiness","/api/v1/auth/csrf").permitAll()

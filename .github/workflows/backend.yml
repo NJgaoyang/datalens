@@ -1,7 +1,7 @@
 name: Backend verification
 on:
   push:
-    branches: [main, dev20261103, fix/m00-frontend-lock, dev20261104-linux-native]
+    branches: [main, dev20261103, fix/m00-frontend-lock, dev20261104-linux-native, dev20261104]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -66,4 +66,3 @@ jobs:
             server/target/datalens-server.jar
           if-no-files-found: warn
           retention-days: 7
-
