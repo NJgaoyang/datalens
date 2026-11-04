@@ -60,7 +60,9 @@ class IdentityIT {
         assertThat(login.body()).doesNotContain("password", "authVersion", "$2");
         String authenticated=b.cookies.getCookieStore().getCookies().stream().filter(c->c.getName().equals("DATALENS_SESSION")).findFirst().orElseThrow().getValue();
         assertThat(authenticated).isNotEqualTo(initial);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM SPRING_SESSION WHERE SESSION_ID=?",Integer.class,authenticated)).isEqualTo(1);
+        // Spring Session's cookie serializer Base64-encodes the opaque session id.
+        String sessionId = new String(java.util.Base64.getDecoder().decode(authenticated), java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM SPRING_SESSION WHERE SESSION_ID=?",Integer.class,sessionId)).isEqualTo(1);
         assertThat(login.headers().allValues("set-cookie").toString()).contains("HttpOnly", "SameSite=Lax");
         assertThat(b.send("POST","/api/v1/auth/logout","{}",true).statusCode()).isEqualTo(403); // old CSRF
         b.token();assertThat(b.me().statusCode()).isEqualTo(200);
