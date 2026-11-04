@@ -132,7 +132,7 @@ function dismissSearch() { searching.value = false; query.value = ''; }
             </nav>
           </aside>
         </div>
-        <button v-if="isAdmin" type="button" class="lens-admin-link" aria-label="系统管理" :aria-expanded="managementOpen" aria-controls="management-navigation" @click="managementOpen = !managementOpen"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="m10 2-.7 2.5-2 .9L5 4.8 3 8l1.8 1.8v4.4L3 16l2 3.2 2.3-.6 2 .9L10 22h4l.7-2.5 2-.9 2.3.6 2-3.2-1.8-1.8V9.8L21 8l-2-3.2-2.3.6-2-.9L14 2h-4Z"/></svg>系统管理</button>
+        <button v-if="isAdmin" type="button" class="lens-admin-link" aria-label="系统管理" :aria-expanded="managementOpen" aria-controls="management-navigation" @click="managementOpen = !managementOpen"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="m10 2-.7 2.5-2 .9L5 4.8 3 8l1.8 1.8v4.4L3 16l2 3.2 2.3-.6 2 .9L10 22h4l.7-2.5 2-.9 2.3.6 2-3.2-1.8-1.8V9.8L21 8l-2-3.2-2.3.6-2-.9L14 2h-4Z"/></svg><span class="lens-admin-label">系统管理</span></button>
         <aside v-if="isAdmin && managementOpen" id="management-navigation" class="lens-management" aria-label="系统管理导航"><div class="lens-management-heading"><strong>系统管理</strong><button type="button" aria-label="收起系统管理" @click="managementOpen = false">×</button></div><RouterLink v-for="item in management" :key="item.path" :to="item.path">{{ item.label }}</RouterLink></aside>
       </aside>
       <main id="main-content" class="lens-content" tabindex="-1"><RouterView /></main>

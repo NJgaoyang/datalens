@@ -103,6 +103,7 @@ async function load() {
       const value = await readConversation(context.conversationId, context.signal);
       if (!active(context)) return;
       conversation.value = value;
+      subjectId.value = value.subjectId;
       const running = value.turns.find(turn => isTurnPending(turn.status));
       if (running) await follow(running, context);
       else if (value.turns.at(-1) && ['READY', 'NO_DATA'].includes(value.turns.at(-1)!.status)) await preview(value.turns.at(-1)!, context);
@@ -204,7 +205,7 @@ onBeforeUnmount(() => { metadataController?.abort(); reset(); clearPrivateState(
           <div class="ask-inspiration">
             <div class="ask-inspiration-head"><strong>试试这样提问</strong><span>示例问法 · 需使用已授权的业务口径</span></div>
             <div class="ask-inspiration-grid">
-              <button v-for="(item,index) in exampleQuestions" :key="item" type="button" :disabled="blocked || !!saving" @click="example(item)"><span class="ask-example-icon" :class="'example-' + index">{{ ['↗','▥','⌁','≡'][index] }}</span><span>{{ item }}</span><span class="ask-example-arrow">↗</span></button>
+              <button v-for="(item,index) in exampleQuestions" :key="item" type="button" :disabled="blocked || !!saving || !subjects.length" @click="example(item)"><span class="ask-example-icon" :class="'example-' + index">{{ ['↗','▥','⌁','≡'][index] }}</span><span>{{ item }}</span><span class="ask-example-arrow">↗</span></button>
             </div>
           </div>
           <div v-if="!loading && subjects.length" class="ask-welcome-footer"><span class="ask-status-point"></span>当前可用 {{ subjects.length }} 个分析空间 · 从下方输入问题开始</div>
@@ -263,7 +264,7 @@ onBeforeUnmount(() => { metadataController?.abort(); reset(); clearPrivateState(
       <section class="ask-side-card"><div class="ask-side-heading"><h2><span class="ask-side-symbol" aria-hidden="true">▦</span><span>可用数据</span></h2><RouterLink to="/subjects">查看全部 ›</RouterLink></div>
         <p v-if="!scopeId" class="ask-side-placeholder">选择分析空间后，可查看当前获准访问的数据。</p>
         <p v-else-if="metadataLoading" class="ask-side-placeholder">正在读取授权元数据…</p>
-        <div v-else-if="metadataError" class="ask-side-placeholder"><p>暂时无法读取数据范围：{{ metadataError }}</p><RouterLink to="/subjects">查看分析空间权限</RouterLink></div>
+        <div v-else-if="metadataError" class="ask-side-placeholder"><p>当前空间的授权字段暂不可用，请在分析空间检查数据采集与授权范围。</p><RouterLink to="/subjects">查看分析空间权限</RouterLink></div>
         <p v-else-if="!availableTables.length" class="ask-side-placeholder">该空间暂时没有可用的字段，请联系管理员完成采集和授权。</p>
         <ul v-else class="ask-table-list"><li v-for="(table,index) in availableTables" :key="table"><span class="ask-table-symbol" :class="'table-' + index">▤</span><div><strong>{{ table }}</strong><span>{{ columns.filter(col => col.tableName === table).length }} 个授权字段</span></div><RouterLink to="/subjects" :aria-label="'查看 ' + table + ' 的授权字段'">›</RouterLink></li></ul>
       </section>

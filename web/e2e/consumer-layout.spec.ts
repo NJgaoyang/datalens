@@ -44,6 +44,7 @@ test('approved results layout uses actual authorized schema and real query-resul
   await page.goto('/ask/c-real');
   await expect(page.getByText('最近 30 天各城市的销售额是多少？')).toBeVisible();
   await expect(page.getByRole('heading', { name: '分析空间', exact: true })).toBeVisible();
+  await expect(page.getByLabel('分析空间', { exact: true })).toHaveValue('s-1');
   await expect(page.getByText('orders', { exact: true })).toBeVisible();
   await expect(page.getByText('users', { exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: '图表', exact: true })).toHaveAttribute('aria-selected', 'true');
@@ -64,6 +65,7 @@ test('mobile asks can select an authorized space although right sidebar collapse
   await expect(page.getByRole('heading', { name: '你好，今天想了解什么数据？' })).toBeVisible();
   const scope = page.getByLabel('移动端分析空间');
   await expect(scope).toBeVisible();
+  await expect(page.locator('.lens-admin-label')).toBeHidden();
   await expect(scope).toHaveValue('');
   await scope.selectOption('s-1');
   await expect(page.getByRole('button', { name: '开始分析' })).toBeDisabled();
