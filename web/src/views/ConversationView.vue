@@ -9,6 +9,7 @@ import type { QueryResult } from '../api/queries';
 import { chartOptions } from '../charts/render';
 import { shouldSubmitQuestion, titleFromQuestion } from '../conversation/presentation';
 import AnalysisResult from '../components/AnalysisResult.vue';
+import { clearHistoryImmediately } from '../conversation/historySignal';
 
 const route = useRoute(), router = useRouter();
 const id = computed(() => typeof route.params.id === 'string' ? route.params.id : '');
@@ -47,7 +48,10 @@ function clearPrivateState() {
 }
 function failure(cause: unknown) {
   error.value = errorMessage(cause);
-  if (cause instanceof ApiError && [401, 403, 404].includes(cause.status ?? 0)) { reset(); clearPrivateState(); }
+  if (cause instanceof ApiError && [401, 403, 404].includes(cause.status ?? 0)) {
+    if (cause.status === 403 || cause.status === 404) clearHistoryImmediately();
+    reset(); clearPrivateState();
+  }
   if (cause instanceof ApiError && cause.status === 409) { needsReload.value = true; results.value = {}; saveNames.value = {}; saveTarget.value = ''; }
 }
 function updateTurn(turn: ConversationTurn) {
