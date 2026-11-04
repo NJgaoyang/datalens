@@ -4,12 +4,13 @@
 
 ## 在打包机器执行
 
-要求 Java 21 JDK、Maven 3.9.x、Node.js 22.x、npm、tar：
+要求 Java 21 JDK、Maven 3.9.x、Node.js 22.12+ 或 24.x、npm、tar：
 
 ```bash
 git clone -b dev20261104-linux-native https://github.com/NJgaoyang/datalens.git
 cd datalens
 bash package.sh
+# 也可以用 sh package.sh（脚本会自动切换到 Bash）
 ```
 
 产物：`dist/datalens-0.1.0-linux.tar.gz`，包含前端静态资源、Spring Boot 可执行 JAR、配置模板、启动/关闭/状态/日志脚本。不把 MySQL 真实密码或数据源密钥打入包中。

@@ -43,6 +43,9 @@ nohup "$JAVA_CMD" "-Xms$JAVA_XMS" "-Xmx$JAVA_XMX" -jar "$JAR_FILE" >>"$LOG_FILE"
 pid=$!
 printf '%s\n' "$pid" > "$PID_FILE"
 echo "DataLens 启动中，PID: $pid"
+# nohup may not have exec'd Java at the exact moment the shell records $!.
+# Allow a short startup grace period before verifying its command line.
+sleep 2
 if ! command -v curl >/dev/null 2>&1; then
   echo "未检测到 curl，无法自动检查就绪状态，请执行 bin/status.sh"; exit 0
 fi

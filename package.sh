@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Also handle invocations such as "sh package.sh" when /bin/sh is not Bash.
+if [ -z "${BASH_VERSION:-}" ]; then exec bash "$0" "$@"; fi
 set -Eeuo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -9,9 +11,15 @@ done
 if ! java -version 2>&1 | head -n 1 | grep -Eq '"21([."]|$)'; then
   echo "打包需要 Java 21 JDK" >&2; exit 1
 fi
-if [[ "$(node -p 'process.versions.node.split(".")[0]')" != "22" ]]; then
-  echo "打包需要 Node.js 22.x" >&2; exit 1
+NODE_VERSION="$(node -p 'process.versions.node')"
+NODE_MAJOR="${NODE_VERSION%%.*}"
+if [[ "$NODE_MAJOR" != "22" && "$NODE_MAJOR" != "24" ]]; then
+  echo "打包支持 Node.js 22.x 或 24.x，当前: v$NODE_VERSION" >&2; exit 1
 fi
+if [[ "$NODE_MAJOR" == "22" ]] && [[ "$(node -p 'Number(process.versions.node.split(".")[1])')" -lt 12 ]]; then
+  echo "Node.js 22 需要至少 22.12.0，当前: v$NODE_VERSION" >&2; exit 1
+fi
+echo "Node.js: v$NODE_VERSION (支持 22/24)"
 [[ -f web/package-lock.json ]] || { echo "缺少 web/package-lock.json" >&2; exit 1; }
 
 echo "[1/4] 编译 Vue 前端"

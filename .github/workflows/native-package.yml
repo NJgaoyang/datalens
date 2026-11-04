@@ -29,7 +29,7 @@ jobs:
           cache-dependency-path: server/pom.xml
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
       - name: Verify shell syntax
         run: |
           bash -n package.sh
@@ -44,7 +44,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/native"
           tar -xzf dist/datalens-0.1.0-linux.tar.gz -C "$RUNNER_TEMP/native"
           APP="$RUNNER_TEMP/native/datalens"
-          trap '"$APP/bin/stop.sh" || true' EXIT
+          trap 'result=$?; if (( result != 0 )); then echo "===== DataLens startup logs ====="; tail -n 120 "$APP/logs/datalens.log" 2>/dev/null || true; fi; "$APP/bin/stop.sh" || true' EXIT
           sed -i "s/^DATALENS_DB_PASSWORD=.*/DATALENS_DB_PASSWORD='ci-only-root-password'/" "$APP/conf/application.env"
           sed -i "s/^DATALENS_BOOTSTRAP_PASSWORD=.*/DATALENS_BOOTSTRAP_PASSWORD='CI-Only-Admin-Password-42'/" "$APP/conf/application.env"
           "$APP/bin/start.sh"
