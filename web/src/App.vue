@@ -116,7 +116,7 @@ function dismissSearch() { searching.value = false; query.value = ''; }
       <aside class="lens-sidebar" aria-label="应用导航">
         <RouterLink to="/ask" class="lens-new" aria-label="新建分析"><span aria-hidden="true">＋</span>新建问数</RouterLink>
         <nav class="lens-nav" aria-label="主要功能">
-          <RouterLink v-for="item in nav.filter(item => item.path !== '/sources' || isAdmin)" :key="item.path" :to="item.path" :aria-label="item.label" :class="['lens-nav-link', { selected: isActive(item.path) }]" :aria-current="isActive(item.path) ? 'page' : undefined">
+          <RouterLink v-for="item in nav.filter(item => item.path !== '/sources' || isAdmin)" :key="item.path" :to="item.path" :class="['lens-nav-link', { selected: isActive(item.path) }]" :aria-current="isActive(item.path) ? 'page' : undefined">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path :d="item.icon"/></svg><span>{{ item.label }}</span>
           </RouterLink>
         </nav>
