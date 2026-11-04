@@ -1,10 +1,16 @@
 # DataLens
 
+## dev20261104 重设计：参考 Chat2DB
+
+本分支基于 `dev20261104-linux-native` 创建，重设计方向为“问数优先、SQL 辅助、图表可保存和共享的企业内部分析工作区”。完整方案见 [Chat2DB 参考重设计方案](docs/redesign-20261104-chat2db.md)，包含页面结构、受控 Text-to-SQL 与多轮追问目标、保留的权限边界及 D00–D05 交付计划。
+
+当前重设计仅完成 **D00 设计文档**；页面、新查询生成能力与多轮交互尚未按新方案实现或验收。以下原有业务代码、运行方式与历史验证记录保持不变，不应把设计目标理解为已经可用的功能。本次不复制 Chat2DB 源码、不更换技术栈、不改变现有权限、不清库、不部署。
+
 ## 一键 tar 包部署：直接 IP:端口访问
 
-在 `dev20261104-linux-native` 分支执行 `bash package.sh`，生成 `dist/datalens-0.1.0-linux.tar.gz`。发行包包含单 JAR（内嵌 Vue 页面）、`conf/application.env` 和 `bin/start.sh` / `bin/stop.sh` / `bin/status.sh` / `bin/restart.sh`。目标 Linux 只需要 Java 21 + 本机 MySQL 8，无需 Nginx、Redis、Docker。使用 `http://服务器IP:8088` 访问，完整步骤见 [Linux 单包部署文档](deploy/native/README.md)。
+本分支继承 `dev20261104-linux-native` 的打包方式：执行 `bash package.sh`，生成 `dist/datalens-0.1.0-linux.tar.gz`。发行包包含单 JAR（内嵌 Vue 页面）、`conf/application.env` 和 `bin/start.sh` / `bin/stop.sh` / `bin/status.sh` / `bin/restart.sh`。目标 Linux 只需要 Java 21 + 本机 MySQL 8，无需 Nginx、Redis、Docker。使用 `http://服务器IP:8088` 访问，完整步骤见 [Linux 单包部署文档](deploy/native/README.md)。
 
-独立智能问数与动态图表平台，按 M00–M10 分模块交付。
+独立智能问数与动态图表平台，原实现按 M00–M10 分模块交付。
 
 - 系统元数据、登录 Session 与限流：MySQL 8（Spring Session JDBC，无 Redis）
 - 分析数据源：外接 StarRocks，只读账号，显式元数据与主题权限范围
