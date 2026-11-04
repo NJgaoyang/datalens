@@ -46,9 +46,11 @@ test('unknown submission outcome retries the same idempotent input and prevents 
 });
 test('leaving the page cancels polling and late responses cannot resurrect old results', async ({ page }) => {
   await setup(page); let polls = 0;
+  await page.route('**/api/v1/charts?*', route => route.fulfill({ json: envelope({ items: [], total: 0, page: 1, size: 20 }) }));
   await page.route('**/api/v1/query-tasks/task-1', async route => { polls++; await new Promise(resolve => setTimeout(resolve, 400)); await route.fulfill({ json: envelope(task('RUNNING')) }); });
   await page.getByRole('button', { name: '执行查询', exact: true }).click(); await expect(page.getByRole('heading', { name: '排队中', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: '业务主题', exact: true }).click(); const before = polls; await page.waitForTimeout(1800); expect(polls).toBe(before); await expect(page.getByRole('heading', { name: '排队中', exact: true })).toHaveCount(0);
+  await page.getByRole('link', { name: '图表中心', exact: true }).click(); await expect(page).toHaveURL(/\/charts\/mine$/);
+  const before = polls; await page.waitForTimeout(1800); expect(polls).toBe(before); await expect(page.getByRole('heading', { name: '排队中', exact: true })).toHaveCount(0);
 });
 test('duplicate clicks produce one submission and server validation stays visible', async ({ page }) => {
   await setup(page); let submissions = 0;
