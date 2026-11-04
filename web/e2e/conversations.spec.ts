@@ -165,7 +165,7 @@ test('leaving during initial creation prevents a late response from sending the 
   });
   await page.route('**/api/v1/conversations/c1/turns', route => { sends++; return route.fulfill({ json: envelope(ready) }); });
   await page.goto('/ask'); await page.getByLabel('问数问题').fill('查询销售额'); await page.getByRole('button', { name: '开始分析' }).click(); await waiting;
-  await page.getByRole('link', { name: '图表中心', exact: true }).click(); await expect(page).toHaveURL(/\/charts\/mine$/); release();
+  await page.getByRole('link', { name: '我的图表', exact: true }).click(); await expect(page).toHaveURL(/\/charts\/mine$/); release();
   await page.waitForTimeout(200); expect(sends).toBe(0); await expect(page.getByText('查询销售额', { exact: true })).toHaveCount(0);
 });
 test('expired session while polling clears questions and redirects to login', async ({ page }) => {
@@ -188,7 +188,7 @@ test('uncertain follow-up retries the same key and input without automatic repla
 });
 for (const width of [1440, 1920]) test(`workspace at ${width}px keeps the composer visible and history can collapse`, async ({ page }) => {
   await page.setViewportSize({ width, height: 1000 }); await fixtures(page); await page.goto('/ask');
-  await expect(page.getByRole('heading', { name: '从一个问题开始' })).toBeVisible(); await expect(page.getByLabel('问数问题')).toBeInViewport();
+  await expect(page.getByRole('heading', { name: '你好，今天想了解什么数据？' })).toBeVisible(); await expect(page.getByLabel('问数问题')).toBeInViewport();
   await page.screenshot({ path: `test-results/d01-ask-home-${width}.png`, fullPage: true });
   await page.getByRole('button', { name: '收起历史会话', exact: true }).first().click(); await expect(page.getByRole('complementary', { name: '我的会话' })).toBeHidden();
   await page.getByRole('button', { name: '展开历史会话', exact: true }).click(); await expect(page.getByRole('complementary', { name: '我的会话' })).toBeVisible();
