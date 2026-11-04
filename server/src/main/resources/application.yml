@@ -19,8 +19,8 @@ spring:
     timeout-per-shutdown-phase: 20s
   datasource:
     url: ${DATALENS_DB_URL:jdbc:mysql://127.0.0.1:3306/datalens?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&sslMode=DISABLED&allowPublicKeyRetrieval=true}
-    username: ${DATALENS_DB_USERNAME:datalens}
-    password: ${DATALENS_DB_PASSWORD}
+    username: ${DATALENS_DB_USERNAME:root}
+    password: ${DATALENS_DB_PASSWORD:123456}
     hikari:
       maximum-pool-size: 10
       minimum-idle: 1

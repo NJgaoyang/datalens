@@ -7,7 +7,7 @@
 要求 Java 21 JDK、Maven 3.9.x、Node.js 22.12+ 或 24.x、npm、tar：
 
 ```bash
-git clone -b dev20261104-linux-native https://github.com/NJgaoyang/datalens.git
+git clone -b dev20261104 https://github.com/NJgaoyang/datalens.git
 cd datalens
 bash package.sh
 # 也可以用 sh package.sh（脚本会自动切换到 Bash）
@@ -28,7 +28,9 @@ bin/start.sh
 
 浏览器打开 `http://服务器IP:8088`。配置 `DATALENS_PORT` 可修改端口；`bin/stop.sh`、`bin/restart.sh`、`bin/status.sh`、`bin/logs.sh` 可操作服务。无需 Nginx；Spring Boot 同一个端口直接提供 Vue 及 API。更具体说明在 tar 包内的 `README.md`。
 
-在 `conf/application.env` 设置 `DATALENS_DB_USERNAME=root` 和本地 MySQL 实际密码；默认 JDBC 打开 `createDatabaseIfNotExist=true`，使用具备 CREATE 权限的账号首次连接时创建 `datalens` 库，然后由 Flyway 初始化 V1–V12 表。**不会清空已有库**。第一次启动还需配置唯一的管理员密码；创建后清除 bootstrap 配置。
+此全新项目的 tar 包配置默认连接本机 MySQL `127.0.0.1:3306`（用户 `root`、密码 `123456`），首次系统登录使用 `admin / admin@123456`。这些是**公开且不安全的首次安装默认值**，仅供隔离环境初始化，请在联网运行前更改。
+
+JDBC 打开 `createDatabaseIfNotExist=true`，首次使用有 CREATE 权限的账号建立空 `datalens` 数据库，Flyway 初始化当前项目结构。**不兼容旧项目数据库及接口，不会迁移旧数据，也不会自动清理已有库**；如果 `datalens` 已存旧表，必须先另行准备一个空库（可修改 URL 的数据库名），而不是自动清空已有内容。首次登录后修改管理员密码，清空两项 bootstrap 配置并重启；之后不会重置现有账号。
 
 外接 StarRocks 使用单独只读账号，需先填写 `DATALENS_SOURCE_ALLOWED_ENDPOINTS` （数值 IP:端口）和独立永久 `DATALENS_SOURCE_KEY`。没有外部 StarRocks 时也能启动并登录。
 

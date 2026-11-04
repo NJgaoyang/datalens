@@ -1,6 +1,8 @@
 # DataLens architecture and locked versions
 
-Independent Vue application and Java 21 Spring Boot modular monolith. MySQL stores identities, subjects, queries, charts, revisions, sharing and audit; Redis stores sessions. StarRocks is an external analytics database accessed with a separate read-only JDBC pool. No Python service, microservices, Kafka, vector database or model agent system.
+> Effective greenfield baseline for dev20261104 is [greenfield-baseline-20261104.md](greenfield-baseline-20261104.md). Historical compatibility requirements do not apply; never automatically clear an existing database.
+
+Independent Vue application and Java 21 Spring Boot modular monolith. MySQL 8 stores identities, JDBC sessions, login throttling, subjects, queries, charts, revisions, sharing and audit. StarRocks is an external read-only analytics database with an isolated pool. Runs as one native Linux JAR + tar.gz with conf/bin and direct IP:port, no Redis/Nginx/Docker production requirement. No Python service, microservices, Kafka, vector database or model agent system.
 
 ## Version baseline
 
@@ -10,7 +12,7 @@ The committed manifests and lockfile are authoritative. Existing verified depend
 - Spring Boot 4.0.9; Spring AI 2.0.2 BOM + spring-ai-model schema converter; explicit bounded HTTP transport, no auto-configured model starter or automatic tool loop.
 - MyBatis-Plus 3.5.18 Boot 4 starter; Flyway and MySQL connector managed by Boot.
 - JSQLParser 5.3; StarRocks official JDBC 1.1.1; actual 3.3.22 TLS compatibility remains unverified.
-- MySQL 8.4.13; Redis 7.4.12 (current Compose/CI images).
+- MySQL 8.4.13 (CI test baseline); JDBC-backed sessions, no Redis runtime dependency. Example first-install connection defaults are documented separately.
 - Frontend exact versions in web/package.json and package-lock.json; npm ci is mandatory, no floating direct dependencies.
 
 ## Boundaries
@@ -23,11 +25,11 @@ Chart viewing is separate from management, arbitrary SQL and export. Publication
 
 ## Test and deployment workflow
 
-- server: `mvn -B verify`; full MySQL integration: `mvn -B -Pintegration verify` with CI MySQL/Redis configuration.
+- server: `mvn -B verify`; full MySQL integration: `mvn -B -Pintegration verify` against a disposable empty MySQL 8 database.
 - web: `npm ci`, `npm test`, `npm run build`, `npm run test:e2e`.
-- CI backend, frontend browser and disposable Compose acceptance must pass on the exact pushed commit.
-- Flyway only adds migrations; V1–V10 are immutable. V7–V10 add semantic snapshots, model calls/budgets, conversations and controlled exports.
-- Compose smoke checks cold start, authenticated API boundary, same-volume restart, fresh-volume logical restore, executor lease loss/process restart and Redis failure/recovery without requiring model or StarRocks configuration.
+- CI backend and frontend browser checks must pass on the exact pushed commit; native tar startup/readiness checks are separate release evidence.
+- Flyway currently contains V1–V12 from the earlier build. Since this is a greenfield project, the pre-release baseline may be refactored without upgrade compatibility; test cold install on an empty schema. Never change a populated schema without separate authorization.
+- Native release checks cover cold start, authenticated API boundary, repeat restart on the SAME initialized schema, logical restore, executor lease loss/process restart and missing external model/StarRocks configuration. Historical Compose tests are not the deployment target.
 - Real StarRocks protocol/TLS, cancellation, timeout, concurrency and business-data freshness gates are tracked separately. Mocks and MySQL integration do not close them.
 
 M05 is not production deployment authorization. No merge/deploy is performed by this implementation.

@@ -14,11 +14,13 @@ set +a
 : "${DATALENS_DB_URL:?缺少 DATALENS_DB_URL}"
 : "${DATALENS_DB_USERNAME:?缺少 DATALENS_DB_USERNAME}"
 : "${DATALENS_DB_PASSWORD:?请在 conf/application.env 中填写 MySQL 密码}"
-if [[ "$DATALENS_DB_PASSWORD" == "CHANGE_ME" ]]; then
-  echo "请先修改 conf/application.env 中的 MySQL 密码" >&2; exit 1
+# The released defaults are only suitable for a trusted first-install environment.
+# Do not print passwords in logs; warn by credential class only.
+if [[ "$DATALENS_DB_USERNAME" == "root" && "$DATALENS_DB_PASSWORD" == "123456" ]]; then
+  echo "[安全提醒] 当前使用默认 MySQL root 连接凭据，仅适用于隔离的首次安装环境。" >&2
 fi
-if [[ -n "${DATALENS_BOOTSTRAP_USERNAME:-}" && "${DATALENS_BOOTSTRAP_PASSWORD:-}" == "CHANGE_ME_ADMIN" ]]; then
-  echo "请先设置独立的管理员初始密码" >&2; exit 1
+if [[ "${DATALENS_BOOTSTRAP_USERNAME:-}" == "admin" && "${DATALENS_BOOTSTRAP_PASSWORD:-}" == "admin@123456" ]]; then
+  echo "[安全提醒] 启用了默认系统管理员首次初始化口令，请首次登录后修改并清除 bootstrap 配置。" >&2
 fi
 if [[ -f "$PID_FILE" ]]; then
   old="$(cat "$PID_FILE")"

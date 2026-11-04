@@ -1,5 +1,7 @@
 # DataLens 需求基线
 
+> **2026-11-04 生效说明**：本文件下文的 M00–M10、Redis、Docker、Nginx 章节为早期开发历史记录，不再定义新分支的兼容边界。当前 `dev20261104` 以 [全新项目基线](greenfield-baseline-20261104.md) 和 [Chat2DB 参考重设计](redesign-20261104-chat2db.md) 为准：不兼容旧代码/旧数据库，空 MySQL 8 首次安装，Linux 原生单 JAR，MySQL JDBC Session，外接只读 StarRocks。不得自动清理已有库。
+
 当前实现推进至 M09 业务功能与 M10 开发集成验收/生产准备。真实 StarRocks、模型、人工确认业务题集、约定性能、生产安全与恢复演练仍阻断上线；详见 M10-acceptance.md。测试通过不代表生产验收通过。
 
 ## 1. 已确认方向
@@ -40,8 +42,8 @@ M00 不实现登录、用户管理、图表、查询执行或模型问数接口�
 - 系统元数据：MySQL 8.4、MyBatis-Plus；版本变更仅使用 Flyway。
 - 分析执行：外部 StarRocks、独立 JDBC 连接池、受控只读查询。
 - SQL 解析：JSQLParser + 自建规则 + 实际 StarRocks 方言测试；解析失败必须拒绝。
-- 缓存与会话：Redis；持久化图表、授权、任务不能只存 Redis。
-- 部署：Docker Compose + Nginx。
+- 缓存与会话：MySQL 8 JDBC Session，无 Redis；持久化图表、授权、任务都保存在 MySQL。
+- 部署：Linux 原生单 JAR + tar.gz / conf / bin，通过 IP:端口访问，无 Docker/Nginx。
 
 不引入 Python 服务、微服务注册中心、Kafka、向量数据库或多 Agent 专家团。不集成旧项目；Chat2DB、Codata 仅作参考，复用代码需记录来源、提交、许可证和测试证据。
 

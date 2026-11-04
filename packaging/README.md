@@ -38,9 +38,14 @@ bin/stop.sh
 bin/restart.sh
 ```
 
-编辑 conf/application.env：`DATALENS_DB_USERNAME=root`、`DATALENS_DB_PASSWORD` 为本机 MySQL 的实际密码。默认连接 127.0.0.1:3306。首次启动时 JDBC 可用 CREATE 权限自动创建 datalens 数据库；Flyway 自动创建表（V1–V12）；不需手工导入 SQL。若 MySQL 不允许自动建库，可提前执行 `CREATE DATABASE datalens CHARACTER SET utf8mb4;`。
+首次安装的配置文件已有以下默认值（**这是公开的测试默认口令，不可用作公网/正式生产密码**）：
 
-务必修改 `DATALENS_BOOTSTRAP_PASSWORD`，首次启动会创建管理员 `admin`。账号创建后将这两个初始化变量清空，再重启；不会重置或删除用户。
+- MySQL：`127.0.0.1:3306`，用户名 `root`，密码 `123456`。
+- 系统管理员：`admin`，初始密码 `admin@123456`。
+
+仅面向**新建空的** `datalens` 元数据库。MySQL root 需能创建数据库：JDBC `createDatabaseIfNotExist=true` 首次建库，Flyway 初始化当前项目所需表，不需要导入旧版本数据。不能将本包视作历史版本的升级包；**不会自动删除已有数据库**。若名称已被旧项目使用，请先手工规划使用独立的新数据库/实例，不要直接覆盖旧数据。
+
+管理员只在用户表为空时初始化，重复启动不会恢复或重置管理员密码。首次成功登录后请立即修改登录密码，修改 MySQL 密码及配置，清空 `DATALENS_BOOTSTRAP_USERNAME`、`DATALENS_BOOTSTRAP_PASSWORD` 并重启。
 
 访问：**http://服务器IP:8088**。可通过 `DATALENS_PORT` 修改端口，`DATALENS_BIND_ADDRESS=0.0.0.0` 表示监听所有网卡。按需开放 Linux 防火墙，不要放开 3306 到公网。
 
