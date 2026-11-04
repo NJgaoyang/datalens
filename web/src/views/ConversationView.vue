@@ -200,7 +200,7 @@ onBeforeUnmount(() => { reset(); clearPrivateState(); });
         <p class="composer-footnote">当前问数基于已发布的业务口径。请勿输入密码、密钥或不适合发送给模型的敏感信息。</p>
       </div>
     </div>
-    <el-dialog v-if="saveTurn" :model-value="true" title="保存图表" width="min(520px, 92vw)" :close-on-click-modal="false" :close-on-press-escape="!saving" :show-close="!saving" @update:model-value="value => { if (!value) closeSave(); }">
+    <el-dialog v-if="saveTurn" :model-value="true" title="保存图表" width="min(520px, 92vw)" :close-on-click-modal="false" :close-on-press-escape="!saving" :show-close="!saving" @update:model-value="closeSave">
       <form class="save-chart-form" @submit.prevent="save(saveTurn!)">
         <el-alert v-if="error" :title="error" type="error" :closable="false"/>
         <label>图表名称<el-input v-model="saveNames[saveTurn.id]" aria-label="图表名称" maxlength="120" :disabled="!!saving" autofocus placeholder="为这次分析命名"/></label>
