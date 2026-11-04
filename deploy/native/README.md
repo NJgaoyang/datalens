@@ -20,7 +20,8 @@ For this initial setup the requested local `root` credentials are used. Switch t
 ### 2. Checkout and build
 
 ```sh
-sudo useradd --system --home-dir /opt/datalens --shell /usr/sbin/nologin datalens 2>/dev/null || true
+sudo groupadd --system datalens 2>/dev/null || true
+sudo useradd --system --gid datalens --home-dir /opt/datalens --shell /usr/sbin/nologin datalens 2>/dev/null || true
 sudo mkdir -p /opt/datalens /etc/datalens
 sudo chown "$USER":datalens /opt/datalens
 git clone --branch dev20261104-linux-native https://github.com/NJgaoyang/datalens.git /opt/datalens
