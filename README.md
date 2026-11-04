@@ -2,7 +2,7 @@
 
 ## Native Linux without Docker or Redis
 
-On branch `dev20261104-linux-native`, MySQL 8 stores all system metadata and Spring Session JDBC login sessions. Native Java 21/systemd and Vue/Nginx instructions are at [deploy/native/README.md](deploy/native/README.md). External read-only StarRocks remains optional for initial startup. This is not production acceptance.
+On branch `dev20261104-linux-native`, MySQL 8 stores all system metadata and Spring Session JDBC login sessions plus MySQL-based login rate limits. Native Java 21/systemd and Vue/Nginx instructions are at [deploy/native/README.md](deploy/native/README.md). External read-only StarRocks remains optional for initial startup. This is not production acceptance.
 
 
 独立智能问数与动态图表平台，按 M00–M10 分模块交付。

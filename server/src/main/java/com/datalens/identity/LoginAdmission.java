@@ -5,22 +5,18 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
-import java.util.List;
 import java.util.concurrent.Semaphore;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
-/** Bound expensive authentication before opening a DB transaction. Redis failure fails closed. */
+/** Bound BCrypt admission; shared rolling counts live in MySQL, not Redis or process memory. */
 @Service
 public class LoginAdmission {
-    private static final DefaultRedisScript<Long> COUNT = new DefaultRedisScript<>(
-        "local n=redis.call('INCR',KEYS[1]); if n==1 then redis.call('EXPIRE',KEYS[1],60) end; return n", Long.class);
-    private final StringRedisTemplate redis;
+    private final LoginRateLimitStore limits;
     private final Semaphore capacity=new Semaphore(2);
     private final Semaphore[] names=new Semaphore[256];
-    public LoginAdmission(StringRedisTemplate redis) {
-        this.redis=redis;
+    public LoginAdmission(LoginRateLimitStore limits) {
+        this.limits=limits;
         for(int i=0;i<names.length;i++) names[i]=new Semaphore(1);
     }
     public Permit enter(String name) {
@@ -30,12 +26,15 @@ public class LoginAdmission {
         if(!stripe.tryAcquire()) {capacity.release();throw throttled();}
         Permit permit=new Permit(capacity,stripe);
         try {
-            Long global=redis.execute(COUNT,List.of("datalens:login:global"));
-            if(global==null || global>120) throw throttled();
-            Long account=redis.execute(COUNT,List.of("datalens:login:name:"+digest(canonical)));
-            if(account==null || account>10) throw throttled();
+            if(limits.increment("datalens:login:global")>120) throw throttled();
+            if(limits.increment("datalens:login:name:"+digest(canonical))>10) throw throttled();
             return permit;
-        } catch(RuntimeException ex) {permit.close();throw ex;}
+        } catch(RuntimeException failure) {
+            permit.close();
+            if(failure instanceof DataAccessException)
+                throw new DomainException(503,"DEPENDENCY_UNAVAILABLE","登录限流数据库暂不可用");
+            throw failure;
+        }
     }
     private static String digest(String value) {
         try {return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));}

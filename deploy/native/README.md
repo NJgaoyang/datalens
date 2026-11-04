@@ -1,6 +1,6 @@
 # DataLens native Linux deployment (MySQL 8 / no Docker / no Redis)
 
-Branch: `dev20261104-linux-native`. This is a controlled initial deployment path, **not production acceptance**. The system uses MySQL 8 for all metadata and login sessions (Spring Session JDBC). V11 is additive and leaves V1-V10 unchanged. Old Redis session cookies expire; users re-login. External StarRocks is optional at startup; later add its read-only account through the administrator UI.
+Branch: `dev20261104-linux-native`. This is a controlled initial deployment path, **not production acceptance**. The system uses MySQL 8 for all metadata and login sessions (Spring Session JDBC). V11 (sessions) and V12 (login throttle) are additive and leaves V1-V10 unchanged. Old Redis session cookies expire; users re-login. External StarRocks is optional at startup; later add its read-only account through the administrator UI.
 
 ## Requirements
 
@@ -55,7 +55,7 @@ curl --fail http://127.0.0.1:8080/actuator/health/readiness
 sudo journalctl -u datalens -n 100 --no-pager
 ```
 
-Flyway will create V1-V11 including `SPRING_SESSION` and `SPRING_SESSION_ATTRIBUTES`. Readiness needs healthy MySQL and the exclusive query executor lease. Only one Java instance may use a metadata database.
+Flyway will create V1-V12 including `SPRING_SESSION` and `SPRING_SESSION_ATTRIBUTES`. Readiness needs healthy MySQL and the exclusive query executor lease. Only one Java instance may use a metadata database.
 
 After first admin initialization, remove the two `DATALENS_BOOTSTRAP_*` variables from the local env file and restart the service. Existing accounts persist.
 
@@ -78,6 +78,6 @@ mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -p -D datalens -e "SELECT vers
 systemctl is-active datalens nginx
 ```
 
-Expected: 11 applied migrations, two JDBC session tables, readiness UP, working login through the same-origin Nginx listener and **no Redis process**. `Access denied` means TCP credential mismatch. `SOURCE_ENDPOINT_DENIED` means the external IP:port is not exactly allowed. `SOURCE_KEY_UNAVAILABLE` means missing/invalid AES key. Investigate Java logs with `journalctl -u datalens`; never paste secrets publicly.
+Expected: 12 applied migrations, two JDBC session tables, readiness UP, working login through the same-origin Nginx listener and **no Redis process**. `Access denied` means TCP credential mismatch. `SOURCE_ENDPOINT_DENIED` means the external IP:port is not exactly allowed. `SOURCE_KEY_UNAVAILABLE` means missing/invalid AES key. Investigate Java logs with `journalctl -u datalens`; never paste secrets publicly.
 
 Production release remains blocked until real StarRocks/provider validation, business accuracy tests, HTTPS/security review, backup/restore, quotas/retention and representative load tests complete (see `docs/M10-acceptance.md`).
