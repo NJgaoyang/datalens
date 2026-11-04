@@ -27,10 +27,8 @@ const exampleQuestions = [
 const scopeId = computed(() => conversation.value?.subjectId || subjectId.value);
 const availableTables = computed(() => [...new Set(columns.value.map(item => item.tableName))].slice(0, 6));
 let metadataController: AbortController|undefined;
-const latest = computed(() => conversation.value?.turns.at(-1));
 const pending = computed(() => conversation.value?.turns.some(turn => isTurnPending(turn.status)) ?? false);
 const blocked = computed(() => busy.value || loading.value || pending.value || needsReload.value);
-const selectedSubject = computed(() => subjects.value.find(item => item.id === (conversation.value?.subjectId || subjectId.value)));
 const saveTurn = computed(() => conversation.value?.turns.find(turn => turn.id === saveTarget.value));
 const chartLabels = { TABLE: '数据表格', KPI: '指标卡', BAR: '柱状图', LINE: '折线图', PIE: '饼图' };
 interface FirstAttempt { actor: number|undefined; subjectId: string; question: string; title: string; createKey: string; turnKey: string; summary?: ConversationSummary }
@@ -155,7 +153,6 @@ async function save(turn: ConversationTurn) {
   finally { if (active(context)) saving.value = ''; }
 }
 function keydown(event: KeyboardEvent) { if (!composing.value && shouldSubmitQuestion(event)) { event.preventDefault(); void ask(); } }
-function lastMonth() { if (!blocked.value && !saving.value) question.value = '改成上个月'; }
 watch(question, () => { turnKey = crypto.randomUUID(); }, { flush: 'sync' });
 watch(() => route.fullPath, () => { void load(); }, { immediate: true, flush: 'sync' });
 watch(() => session.user?.id, () => { reset(); clearPrivateState(); error.value = ''; }, { flush: 'sync' });
@@ -195,7 +192,7 @@ onBeforeUnmount(() => { metadataController?.abort(); reset(); clearPrivateState(
           <p class="ask-welcome-desc">用自然语言提出业务问题，快速获得可核对的分析结果。</p>
           <div class="ask-steps"><span><i>1</i> 选择分析空间</span><b>→</b><span><i>2</i> 描述你的问题</span><b>→</b><span><i>3</i> 查看并保存结果</span></div>
           <div v-if="!loading && !subjects.length" class="ask-setup-guide">
-            <div class="ask-setup-icon" aria-hidden="true">!</div><div><strong>还没有可用的分析空间</strong><p>请先关联 StarRocks 数据源、配置字段权限，并发布业务指标；完成后即可在这里提问。</p>
+            <div class="ask-setup-icon" aria-hidden="true">!</div><div><strong>暂无可用分析空间</strong><p>请先关联 StarRocks 数据源、配置字段权限，并发布业务指标；完成后即可在这里提问。</p>
               <div v-if="session.user?.role === 'SUPER_ADMIN'" class="ask-setup-links"><RouterLink to="/sources">配置数据源</RouterLink><RouterLink to="/subjects">创建分析空间</RouterLink><RouterLink to="/semantics">发布业务指标</RouterLink></div>
               <p v-else>请联系系统管理员为你的账号开通分析空间。</p>
             </div>
@@ -224,13 +221,13 @@ onBeforeUnmount(() => { metadataController?.abort(); reset(); clearPrivateState(
                 <el-alert v-if="turn.status === 'NO_DATA'" title="查询成功，但没有匹配数据。不会据此生成趋势、总额或原因说明。" type="info" :closable="false" />
                 <div v-if="turn.spec && ['READY','NO_DATA'].includes(turn.status)" class="ask-understanding">
                   <button class="ask-understanding-title" type="button" :aria-expanded="understandingOpen" @click="understandingOpen = !understandingOpen"><span class="ask-verified" aria-hidden="true">✓</span><strong>分析理解</strong><span class="ask-collapse-icon">{{ understandingOpen ? '⌃' : '⌄' }}</span></button>
-                  <div v-show="understandingOpen" class="ask-understanding-chips"><span><i>▥</i> 指标：{{ turn.metricDescription || '已发布业务口径' }}</span><span><i>▢</i> 时间：{{ describeTimeRule(turn.timeRule) }}</span><span><i>◇</i> 维度：{{ turn.spec.dimension || '整体汇总' }}</span></div>
+                  <div v-show="understandingOpen" class="ask-understanding-chips"><span><i>▥</i> 指标：{{ turn.metricDescription || '已发布业务口径' }}</span><span><i>▢</i> 时间：<span>{{ describeTimeRule(turn.timeRule) }}</span></span><span><i>◇</i> 维度：{{ turn.spec.dimension || '整体汇总' }}</span></div>
                 </div>
                 <el-alert v-if="turn.truncated && !results[turn.id]" title="结果已截断，仅代表返回的部分数据；不计算总额或占比。" type="warning" :closable="false" />
                 <el-alert v-if="resultErrors[turn.id]" :title="resultErrors[turn.id]!" type="error" :closable="false" />
                 <AnalysisResult v-if="results[turn.id]" :turn="turn" :result="results[turn.id]!">
                   <template #actions>
-                    <el-button v-if="!turn.chartId" plain class="ask-chart-action" :disabled="blocked || !!saving" @click="openSave(turn)">☆ 保存图表</el-button>
+                    <el-button v-if="!turn.chartId" plain class="ask-chart-action" aria-label="保存图表" :disabled="blocked || !!saving" @click="openSave(turn)">☆ 保存图表</el-button>
                     <RouterLink v-else class="ask-chart-action-link" :to="'/charts/' + encodeURIComponent(turn.chartId)">打开图表 · 分享 / 导出</RouterLink>
                   </template>
                 </AnalysisResult>
