@@ -29,7 +29,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.annotation.DirtiesContext;
@@ -50,7 +49,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Real MySQL persistence, Redis sessions, HTTP authorization and CSRF.
+ * Real MySQL persistence, JDBC sessions, HTTP authorization and CSRF.
  * ModelGateway and the analytics JDBC pool are deterministic mocks; authorization, query
  * execution orchestration, chart services and persistence are real. This is not provider or
  * StarRocks compatibility evidence. Run the integration Maven profile with disposable services.
@@ -63,7 +62,6 @@ class ConversationIT {
     static final String ROOT = "/api/v1/conversations";
     @Value("${local.server.port}") int port;
     @Autowired JdbcTemplate db;
-    @Autowired StringRedisTemplate redis;
     @Autowired PasswordEncoder passwords;
     @Autowired ObjectMapper json;
     @Autowired PlatformTransactionManager transactions;
@@ -81,7 +79,7 @@ class ConversationIT {
 
     @BeforeEach void seed() throws Exception {
         // Test services only: preserve account-specific counters and all session keys.
-        redis.delete("datalens:login:global");
+        db.update("DELETE FROM sys_login_rate_limit WHERE bucket_key=\'datalens:login:global\'");
         admin = account("SUPER_ADMIN");
         owner = account("USER");
         other = account("USER");
@@ -160,7 +158,7 @@ class ConversationIT {
     }
 
     @AfterEach void cleanup() throws Exception {
-        redis.delete("datalens:login:global");
+        db.update("DELETE FROM sys_login_rate_limit WHERE bucket_key=\'datalens:login:global\'");
         if (source != null) {
             long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(12);
             while (db.queryForObject("SELECT COUNT(*) FROM query_task WHERE source_id=? AND status IN ('QUEUED','RUNNING','CANCELLING')", Long.class, source) > 0 && System.nanoTime() < until) Thread.sleep(20);
