@@ -1,84 +1,34 @@
-# DataLens native Linux deployment (MySQL 8 / no Docker / no Redis)
+# DataLens 直接运行版：单 JAR + tar.gz，无 Nginx、Docker、Redis
 
-Branch: `dev20261104-linux-native`. This is a controlled initial deployment path, **not production acceptance**. The system uses MySQL 8 for all metadata and login sessions (Spring Session JDBC). V11 (sessions) and V12 (login throttle) are additive and leaves V1-V10 unchanged. Old Redis session cookies expire; users re-login. External StarRocks is optional at startup; later add its read-only account through the administrator UI.
+当前 Linux 原生部署改为“一键打包、解压后配置并启动”的模式，不再依赖 systemd 或外部静态 Web 服务器。
 
-## Requirements
+## 在打包机器执行
 
-Linux with Java 21, Maven 3.9.x, Node.js 22.x, npm, Git, Nginx and local MySQL 8 accessible on TCP 127.0.0.1:3306. Confirm versions with `java -version; mvn -version; node --version; nginx -v`. Install prerequisites from supported OS repositories. Do not run Docker or Redis.
+要求 Java 21 JDK、Maven 3.9.x、Node.js 22.x、npm、tar：
 
-### 1. Prepare MySQL
-
-Run `mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -p` (enter the user-supplied password interactively), then:
-
-```sql
-CREATE DATABASE IF NOT EXISTS datalens
-  CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+```bash
+git clone -b dev20261104-linux-native https://github.com/NJgaoyang/datalens.git
+cd datalens
+bash package.sh
 ```
 
-For this initial setup the requested local `root` credentials are used. Switch to a dedicated, least-privileged account before exposure. Take a verified backup before applying migrations to any nonempty database.
+产物：`dist/datalens-0.1.0-linux.tar.gz`，包含前端静态资源、Spring Boot 可执行 JAR、配置模板、启动/关闭/状态/日志脚本。不把 MySQL 真实密码或数据源密钥打入包中。
 
-### 2. Checkout and build
+## 在 Linux 服务器执行
 
-```sh
-sudo groupadd --system datalens 2>/dev/null || true
-sudo useradd --system --gid datalens --home-dir /opt/datalens --shell /usr/sbin/nologin datalens 2>/dev/null || true
-sudo mkdir -p /opt/datalens /etc/datalens
-sudo chown "$USER":datalens /opt/datalens
-git clone --branch dev20261104-linux-native https://github.com/NJgaoyang/datalens.git /opt/datalens
-cd /opt/datalens
-mvn -B -ntp -f server/pom.xml -DskipTests package
-(cd web && npm ci --no-audit --no-fund && npm run build)
-sudo chown -R datalens:datalens /opt/datalens
+运行机器只需要 Java 21、MySQL 8（本机 127.0.0.1:3306）和可用磁盘：
+
+```bash
+tar -xzf datalens-0.1.0-linux.tar.gz
+cd datalens
+vi conf/application.env
+bin/start.sh
 ```
 
-If the directory already exists, inspect local changes and fetch/checkout the named branch rather than overwriting. The build command skips tests for provisioning; run and review CI separately.
+浏览器打开 `http://服务器IP:8088`。配置 `DATALENS_PORT` 可修改端口；`bin/stop.sh`、`bin/restart.sh`、`bin/status.sh`、`bin/logs.sh` 可操作服务。无需 Nginx；Spring Boot 同一个端口直接提供 Vue 及 API。更具体说明在 tar 包内的 `README.md`。
 
-### 3. Configuration (local secrets only)
+在 `conf/application.env` 设置 `DATALENS_DB_USERNAME=root` 和本地 MySQL 实际密码；默认 JDBC 打开 `createDatabaseIfNotExist=true`，使用具备 CREATE 权限的账号首次连接时创建 `datalens` 库，然后由 Flyway 初始化 V1–V12 表。**不会清空已有库**。第一次启动还需配置唯一的管理员密码；创建后清除 bootstrap 配置。
 
-```sh
-sudo cp /opt/datalens/deploy/native/datalens.env.example /etc/datalens/datalens.env
-sudo chown root:root /etc/datalens/datalens.env
-sudo chmod 600 /etc/datalens/datalens.env
-sudoedit /etc/datalens/datalens.env
-```
+外接 StarRocks 使用单独只读账号，需先填写 `DATALENS_SOURCE_ALLOWED_ENDPOINTS` （数值 IP:端口）和独立永久 `DATALENS_SOURCE_KEY`。没有外部 StarRocks 时也能启动并登录。
 
-Set `DATALENS_DB_PASSWORD` to the supplied local MySQL password; do not put it in Git. Set a unique first-run `DATALENS_BOOTSTRAP_PASSWORD` (12–72 UTF-8 bytes). Generate `DATALENS_SOURCE_KEY` using `openssl rand -base64 32` and retain it securely across restarts (lost key means saved StarRocks credentials cannot be decrypted). Existing database/credentials are never deleted or reset.
-
-To use external StarRocks, set `DATALENS_SOURCE_ALLOWED_ENDPOINTS=IP:PORT` with its exact numeric FE IP and MySQL protocol port (often 9030). Log in as superadmin, add the StarRocks source, use a dedicated read-only user, test the connection, then harvest allowed table metadata and create an authorized subject. Check real StarRocks driver/TLS/SQL dialect compatibility before exposing queries. Do not point StarRocks fields at the metadata MySQL.
-
-### 4. Start API using systemd
-
-```sh
-sudo cp /opt/datalens/deploy/native/datalens.service /etc/systemd/system/datalens.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now datalens
-curl --fail http://127.0.0.1:8080/actuator/health/readiness
-sudo journalctl -u datalens -n 100 --no-pager
-```
-
-Flyway will create V1-V12 including `SPRING_SESSION` and `SPRING_SESSION_ATTRIBUTES`. Readiness needs healthy MySQL and the exclusive query executor lease. Only one Java instance may use a metadata database.
-
-After first admin initialization, remove the two `DATALENS_BOOTSTRAP_*` variables from the local env file and restart the service. Existing accounts persist.
-
-### 5. Host Nginx and open UI
-
-```sh
-sudo cp /opt/datalens/deploy/native/nginx.conf /etc/nginx/conf.d/datalens.conf
-sudo nginx -t
-sudo systemctl enable --now nginx
-sudo systemctl reload nginx
-curl --fail http://127.0.0.1:8088/actuator/health/readiness
-```
-
-Nginx deliberately listens on loopback HTTP only. From a desktop, use `ssh -L 8088:127.0.0.1:8088 USER@SERVER` and open `http://127.0.0.1:8088`. Keep `DATALENS_COOKIE_SECURE=false` **only** for localhost HTTP testing. For network/public access, use TLS with a vetted ingress and set `DATALENS_COOKIE_SECURE=true` (and correct proxy headers). Never publish the sample HTTP listener directly.
-
-### 6. Verify MySQL and diagnose
-
-```sh
-mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -p -D datalens -e "SELECT version,success FROM flyway_schema_history ORDER BY installed_rank; SHOW TABLES LIKE 'SPRING_SESSION%';"
-systemctl is-active datalens nginx
-```
-
-Expected: 12 applied migrations, two JDBC session tables, readiness UP, working login through the same-origin Nginx listener and **no Redis process**. `Access denied` means TCP credential mismatch. `SOURCE_ENDPOINT_DENIED` means the external IP:port is not exactly allowed. `SOURCE_KEY_UNAVAILABLE` means missing/invalid AES key. Investigate Java logs with `journalctl -u datalens`; never paste secrets publicly.
-
-Production release remains blocked until real StarRocks/provider validation, business accuracy tests, HTTPS/security review, backup/restore, quotas/retention and representative load tests complete (see `docs/M10-acceptance.md`).
+直接公网 HTTP 登录不安全；生产对外需内置 TLS 证书、设置 Secure Cookie，或严格限制在可信内网。真实 StarRocks/模型性能/恢复等生产验收仍需完成。

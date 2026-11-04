@@ -1,0 +1,80 @@
+name: Native tar.gz verification
+on:
+  push:
+    branches: [dev20261104-linux-native]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package-and-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.4.13
+        env:
+          MYSQL_ROOT_PASSWORD: ci-only-root-password
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: server/pom.xml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify shell syntax
+        run: |
+          bash -n package.sh
+          for script in packaging/bin/*.sh; do bash -n "$script"; done
+      - name: Build self-contained tarball
+        run: bash package.sh
+      - name: Unpack, launch and smoke-test the single-port application
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          tar -tzf dist/datalens-0.1.0-linux.tar.gz | grep -Fx 'datalens/bin/start.sh'
+          mkdir -p "$RUNNER_TEMP/native"
+          tar -xzf dist/datalens-0.1.0-linux.tar.gz -C "$RUNNER_TEMP/native"
+          APP="$RUNNER_TEMP/native/datalens"
+          trap '"$APP/bin/stop.sh" || true' EXIT
+          sed -i "s/^DATALENS_DB_PASSWORD=.*/DATALENS_DB_PASSWORD='ci-only-root-password'/" "$APP/conf/application.env"
+          sed -i "s/^DATALENS_BOOTSTRAP_PASSWORD=.*/DATALENS_BOOTSTRAP_PASSWORD='CI-Only-Admin-Password-42'/" "$APP/conf/application.env"
+          "$APP/bin/start.sh"
+          curl -fsS http://127.0.0.1:8088/actuator/health/readiness | grep -F '"UP"'
+          curl -fsS http://127.0.0.1:8088/ | grep -F 'id="app"'
+          curl -fsS http://127.0.0.1:8088/login | grep -F 'id="app"'
+          curl -fsS http://127.0.0.1:8088/ask/test-id | grep -F 'id="app"'
+          asset=$(curl -fsS http://127.0.0.1:8088/ | grep -oE '/assets/[^"]+\.js' | head -n 1)
+          test -n "$asset"
+          curl -fsS "http://127.0.0.1:8088$asset" -o /dev/null
+          test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8088/api/v1/charts)" = "401"
+          COOKIE="$RUNNER_TEMP/datalens-cookies"
+          TOKEN=$(curl -fsS -c "$COOKIE" -b "$COOKIE" http://127.0.0.1:8088/api/v1/auth/csrf | python3 -c 'import json,sys;print(json.load(sys.stdin)["data"]["token"])')
+          login_code=$(curl -sS -o "$RUNNER_TEMP/login.json" -w '%{http_code}' -c "$COOKIE" -b "$COOKIE" \
+              -H "X-CSRF-TOKEN: $TOKEN" -H 'Content-Type: application/json' \
+              -d '{"username":"admin","password":"CI-Only-Admin-Password-42"}' \
+              http://127.0.0.1:8088/api/v1/auth/login)
+          test "$login_code" = "200"
+          curl -fsS -b "$COOKIE" http://127.0.0.1:8088/api/v1/auth/me | grep -F '"admin"'
+          "$APP/bin/status.sh"
+          "$APP/bin/stop.sh"
+          if "$APP/bin/status.sh"; then
+            echo "Stop did not stop the app" >&2
+            exit 1
+          fi
+      - name: Upload tar.gz package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: datalens-linux-tarball
+          path: dist/datalens-0.1.0-linux.tar.gz
+          if-no-files-found: warn
+          retention-days: 7

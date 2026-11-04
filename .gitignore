@@ -17,3 +17,6 @@ local-secrets/
 
 **/__pycache__/
 *.pyc
+
+# Native release artifacts
+/dist/

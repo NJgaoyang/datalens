@@ -20,6 +20,11 @@ public class SecurityConfiguration {
     @Bean SecurityFilterChain securityFilterChain(HttpSecurity http,ApiErrorWriter errors,PermissionService permissions,
             SecurityContextRepository contexts,CsrfTokenRepository csrf) throws Exception {
         http.authorizeHttpRequests(auth -> auth
+                // Public Vue shell; API access is always enforced independently.
+                .requestMatchers(HttpMethod.GET,"/","/index.html","/assets/**",
+                    "/login","/workspace","/account/password","/audit","/ask","/ask/*",
+                    "/charts","/charts/*","/sources","/queries","/semantics",
+                    "/subjects","/model","/settings").permitAll()
                 .requestMatchers(HttpMethod.GET,"/api/v1/system/info","/actuator/health/liveness","/actuator/health/readiness","/api/v1/auth/csrf").permitAll()
                 .requestMatchers(HttpMethod.POST,"/api/v1/auth/login").permitAll()
                 .requestMatchers("/api/v1/auth/me","/api/v1/auth/logout","/api/v1/auth/password").authenticated()
@@ -54,7 +59,9 @@ public class SecurityConfiguration {
         http.exceptionHandling(ex -> ex
                 .authenticationEntryPoint((request,response,cause) -> errors.write(request,response,401,"UNAUTHENTICATED","请先登录"))
                 .accessDeniedHandler((request,response,cause) -> errors.write(request,response,403,"FORBIDDEN","无权执行此操作或 CSRF 验证失败")));
-        http.headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'none'; frame-ancestors 'none'"))
+        http.headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+                    "img-src 'self' data:; font-src 'self' data:; connect-src 'self'; " +
+                    "base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'"))
                 .frameOptions(frame -> frame.deny()));
         return http.build();
     }

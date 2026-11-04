@@ -63,6 +63,16 @@
     </plugins>
   </build>
   <profiles>
+    <!-- Only the release packaging script enables this profile after Vue build. -->
+    <profile>
+      <id>dist</id>
+      <build>
+        <resources>
+          <resource><directory>src/main/resources</directory></resource>
+          <resource><directory>../web/dist</directory><targetPath>static</targetPath></resource>
+        </resources>
+      </build>
+    </profile>
     <profile>
       <id>integration</id>
       <build><plugins><plugin>
