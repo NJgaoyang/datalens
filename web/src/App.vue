@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { session, logout } from './api/auth';
 import { errorMessage } from './api/http';
 import { listConversations, type ConversationSummary } from './api/conversations';
+import { clearHistoryVersion } from './conversation/historySignal';
 import './workspace.css';
 
 const route = useRoute(), router = useRouter();
@@ -66,6 +67,11 @@ watch(() => route.path, () => {
   if (helpMenu.value) helpMenu.value.open = false;
   searching.value = false;
 }, { immediate: true });
+watch(clearHistoryVersion, () => {
+  historyController?.abort();
+  histories.value = []; historyError.value = ''; historyLoading.value = false;
+  searching.value = false; query.value = '';
+});
 onBeforeUnmount(() => historyController?.abort());
 async function signOut() {
   if (busy.value) return;
