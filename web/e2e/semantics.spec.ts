@@ -71,7 +71,7 @@ test('publication changed during retrieval is not rendered as a mixed version',a
 });
 test('leaving and returning does not resurrect prior editor or publication from late responses',async({page})=>{
   await setup(page,true);await page.route('**/semantics/subject-1/published',async route=>{await new Promise(resolve=>setTimeout(resolve,500));await route.fulfill({json:envelope(pub())});});
-  await page.getByRole('button',{name:'检索已发布口径'}).click();await page.getByRole('link',{name:'业务主题',exact:true}).click();await page.waitForTimeout(600);await expect(page.getByRole('heading',{name:'管理员草稿与发布'})).toHaveCount(0);await page.goBack();await expect(page.getByLabel('语义业务主题')).toHaveValue('');await expect(page.getByText('指标 · 净销售额',{exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'检索已发布口径'}).click();await page.getByRole('link',{name:'分析空间',exact:true}).click();await page.waitForTimeout(600);await expect(page.getByRole('heading',{name:'管理员草稿与发布'})).toHaveCount(0);await page.goBack();await expect(page.getByLabel('语义业务主题')).toHaveValue('');await expect(page.getByText('指标 · 净销售额',{exact:true})).toHaveCount(0);
 });
 
 test('admin can withdraw redacted publication after source disable without requiring readable metadata',async({page})=>{
