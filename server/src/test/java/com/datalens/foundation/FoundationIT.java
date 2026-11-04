@@ -1,14 +1,11 @@
 package com.datalens.foundation;
 
 import com.datalens.common.web.RequestIdFilter;
-import java.time.Duration;
-import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.web.FilterChainProxy;
 import org.springframework.test.web.servlet.MockMvc;
@@ -18,7 +15,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/** Requires disposable MySQL 8.4 and Redis. Run with -Pintegration, never against production. */
+/** Requires disposable MySQL 8.4. Run with -Pintegration, never against production. */
 @org.springframework.test.annotation.DirtiesContext(classMode=org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_CLASS)
 @SpringBootTest
 class FoundationIT {
@@ -27,7 +24,6 @@ class FoundationIT {
     @Autowired FilterChainProxy springSecurityFilterChain;
     @Autowired Flyway flyway;
     @Autowired JdbcTemplate jdbc;
-    @Autowired StringRedisTemplate redis;
     @Autowired com.datalens.query.QueryLease queryLease;
     @Autowired org.springframework.boot.health.actuate.endpoint.HealthEndpoint health;
     private MockMvc mvc;
@@ -66,13 +62,12 @@ class FoundationIT {
                 .andExpect(jsonPath("$.status").value("UP")).andExpect(jsonPath("$.components").doesNotExist());
     }
 
-    @Test void lostLeaseAloneMakesReadinessFailEvenWithHealthyDatabaseAndRedis() throws Exception {
+    @Test void lostLeaseAloneMakesReadinessFailEvenWithHealthyDatabase() throws Exception {
         // Disposable idle integration process only: deliberately release its advisory lock.
         queryLease.close();
         try {
             assertThat(jdbc.queryForObject("SELECT 1", Integer.class)).isEqualTo(1);
             assertThat(health.healthForPath("db").getStatus().getCode()).isEqualTo("UP");
-            assertThat(health.healthForPath("redis").getStatus().getCode()).isEqualTo("UP");
             assertThat(health.healthForPath("queryExecutor").getStatus().getCode()).isEqualTo("DOWN");
             mvc.perform(get("/actuator/health/readiness")).andExpect(status().isServiceUnavailable())
                     .andExpect(jsonPath("$.status").value("DOWN")).andExpect(jsonPath("$.components").doesNotExist());
@@ -81,14 +76,8 @@ class FoundationIT {
         mvc.perform(get("/actuator/health/readiness")).andExpect(status().isOk());
     }
 
-    @Test void redisWorksWithoutBecomingPersistentFactSource() {
-        String key = "datalens:integration:" + UUID.randomUUID();
-        try {
-            redis.opsForValue().set(key, "probe", Duration.ofSeconds(30));
-            assertThat(redis.opsForValue().get(key)).isEqualTo("probe");
-        } finally {
-            redis.delete(key);
-        }
+    @Test void mysqlSessionTablesExist() {
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('SPRING_SESSION','SPRING_SESSION_ATTRIBUTES')",Integer.class)).isEqualTo(2);
     }
 }
 

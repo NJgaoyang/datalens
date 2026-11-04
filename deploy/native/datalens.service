@@ -1,0 +1,23 @@
+[Unit]
+Description=DataLens API - Linux native (MySQL JDBC sessions)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=datalens
+Group=datalens
+WorkingDirectory=/opt/datalens
+EnvironmentFile=/etc/datalens/datalens.env
+ExecStart=/usr/bin/java -Xms256m -Xmx1024m -jar /opt/datalens/server/target/datalens-server.jar
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=35
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

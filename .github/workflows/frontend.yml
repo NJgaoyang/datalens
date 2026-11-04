@@ -1,7 +1,7 @@
 name: Frontend verification
 on:
   push:
-    branches: [main, dev20261103, fix/m00-frontend-lock]
+    branches: [main, dev20261103, fix/m00-frontend-lock, dev20261104-linux-native]
   pull_request:
   workflow_dispatch:
 permissions:

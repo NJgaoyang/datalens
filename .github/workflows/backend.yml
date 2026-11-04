@@ -1,7 +1,7 @@
 name: Backend verification
 on:
   push:
-    branches: [main, dev20261103, fix/m00-frontend-lock]
+    branches: [main, dev20261103, fix/m00-frontend-lock, dev20261104-linux-native]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -25,19 +25,11 @@ jobs:
         options: >-
           --health-cmd="mysqladmin ping -h 127.0.0.1 --silent"
           --health-interval=5s --health-timeout=5s --health-retries=30
-      redis:
-        image: redis:7.4.12-alpine
-        ports: ['6379:6379']
-        options: >-
-          --health-cmd="redis-cli ping"
-          --health-interval=5s --health-timeout=3s --health-retries=15
     env:
       DATALENS_DB_URL: jdbc:mysql://127.0.0.1:3306/datalens?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&sslMode=DISABLED&allowPublicKeyRetrieval=true
       DATALENS_UPGRADE_DB_URL: jdbc:mysql://127.0.0.1:3306/datalens_upgrade?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&sslMode=DISABLED&allowPublicKeyRetrieval=true
       DATALENS_DB_USERNAME: datalens
       DATALENS_DB_PASSWORD: ci-only-datalens-test-password
-      DATALENS_REDIS_HOST: 127.0.0.1
-      DATALENS_REDIS_PORT: 6379
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -61,7 +53,7 @@ jobs:
       - name: Create isolated schema for additive upgrade acceptance
         run: |
           docker exec '${{ job.services.mysql.id }}' sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -e "CREATE DATABASE datalens_upgrade; GRANT ALL PRIVILEGES ON datalens_upgrade.* TO \"datalens\"@\"%\";"'
-      - name: Compile, unit test and real MySQL/Redis integration test
+      - name: Compile, unit test and real MySQL/JDBC-session integration test
         run: mvn -B -ntp -f server/pom.xml verify -Pintegration
       - name: Package and reports
         if: always()

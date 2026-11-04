@@ -7,10 +7,9 @@ import org.springframework.beans.factory.annotation.*;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import tools.jackson.databind.*;
 import static org.assertj.core.api.Assertions.*;
-/** Real HTTP cookies + Spring Security + Redis sessions + MySQL; disposable CI services only. */
+/** Real HTTP cookies + Spring Security + JDBC sessions in MySQL; disposable CI services only. */
 @org.springframework.test.annotation.DirtiesContext(classMode=org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_CLASS)
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,
  properties={"server.servlet.session.cookie.secure=false", "server.address=127.0.0.1"})
@@ -21,7 +20,6 @@ class IdentityIT {
     @Autowired PasswordEncoder encoder;
     @Autowired ObjectMapper json;
     @Autowired IdentityService identities;
-    @Autowired StringRedisTemplate redis;
     String admin, user;
     long adminId,userId;
     @BeforeEach void seed() {
@@ -62,6 +60,7 @@ class IdentityIT {
         assertThat(login.body()).doesNotContain("password", "authVersion", "$2");
         String authenticated=b.cookies.getCookieStore().getCookies().stream().filter(c->c.getName().equals("DATALENS_SESSION")).findFirst().orElseThrow().getValue();
         assertThat(authenticated).isNotEqualTo(initial);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM SPRING_SESSION WHERE SESSION_ID=?",Integer.class,authenticated)).isEqualTo(1);
         assertThat(login.headers().allValues("set-cookie").toString()).contains("HttpOnly", "SameSite=Lax");
         assertThat(b.send("POST","/api/v1/auth/logout","{}",true).statusCode()).isEqualTo(403); // old CSRF
         b.token();assertThat(b.me().statusCode()).isEqualTo(200);

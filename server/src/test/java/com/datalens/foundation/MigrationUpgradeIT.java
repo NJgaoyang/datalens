@@ -7,7 +7,7 @@ import static org.assertj.core.api.Assertions.*;
 
 /** Dedicated disposable schema, never clean/drop or reuse the application integration schema. */
 class MigrationUpgradeIT {
-    @Test void upgradesVersionNineWithDataAndPreservesChecksumsOnRepeatedMigration() throws Exception {
+    @Test void upgradesVersionNineThroughJdbcSessionMigrationAndPreservesChecksums() throws Exception {
         String url = System.getenv("DATALENS_UPGRADE_DB_URL");
         assertThat(url).as("Create an empty dedicated datalens_upgrade database; see deploy/README.md")
                 .startsWith("jdbc:mysql://127.0.0.1:").contains("/datalens_upgrade?");
@@ -24,7 +24,7 @@ class MigrationUpgradeIT {
             statement.executeUpdate("INSERT INTO model_daily_budget(budget_date,reserved_tokens) VALUES('2020-01-01',12345)");
             var upgrade = Flyway.configure().dataSource(url, user, password).locations("classpath:db/migration")
                     .cleanDisabled(true).validateOnMigrate(true).load();
-            assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(1);
+            assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(2);
             upgrade.validate();
             assertThat(upgrade.migrate().migrationsExecuted).isZero();
             try (var rows = statement.executeQuery("SELECT setting_value FROM sys_platform_setting WHERE setting_key='ci.upgrade.probe'")) {
@@ -39,8 +39,11 @@ class MigrationUpgradeIT {
             try (var rows = statement.executeQuery("SELECT COUNT(*) FROM chart_export_grant")) {
                 assertThat(rows.next()).isTrue(); assertThat(rows.getInt(1)).isZero();
             }
-            assertThat(upgrade.info().applied()).hasSize(10);
+            assertThat(upgrade.info().applied()).hasSize(11);
             assertThat(upgrade.info().pending()).isEmpty();
+            try(var rows=statement.executeQuery("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('SPRING_SESSION','SPRING_SESSION_ATTRIBUTES')")) {
+                assertThat(rows.next()).isTrue();assertThat(rows.getInt(1)).isEqualTo(2);
+            }
         }
     }
 }
